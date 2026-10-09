@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
+  <title>Tacit</title>
+  <meta name="description" content="Tacit. A keyboard-first launcher for the web. Type, press Enter, done.">
+  <meta name="theme-color" content="#1c1b19" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f6f2ea" media="(prefers-color-scheme: light)">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/tacit.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/tacit.svg">
+  <link rel="search" type="application/opensearchdescription+xml" href="opensearch.xml" title="Tacit">
+  <script src="js/boot.js"></script>
+  <link rel="stylesheet" href="css/tacit.css">
+  <link rel="stylesheet" href="css/panel.css">
+</head>
+<body>
+  <main id="launcher" class="bar-bottom">
+    <section id="clock-block" aria-hidden="true" hidden>
+      <div id="clock-time"></div>
+      <div id="clock-date"></div>
+    </section>
+
+    <section id="results-region" aria-label="Results">
+      <ul id="results" role="listbox" aria-label="Results"></ul>
+    </section>
+
+    <form id="search-bar" role="search" autocomplete="off" action="#">
+      <label for="search-input" class="visually-hidden">Search</label>
+      <div class="field">
+        <svg class="field-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4 4"/></svg>
+        <input id="search-input" type="search" placeholder="Search" enterkeyhint="go" dir="auto"
+          autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+          role="combobox" aria-expanded="true" aria-controls="results" aria-autocomplete="list">
+      </div>
+      <button id="panel-button" class="icon-btn" type="button" aria-label="Panel">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="19" cy="12" r="1.2"/></svg>
+      </button>
+    </form>
+
+    <div id="hint" role="status" aria-live="polite"></div>
+  </main>
+
+  <script src="js/normalize.js"></script>
+  <script src="js/engine.js"></script>
+  <script src="js/calc.js"></script>
+  <script src="js/sensitive.js"></script>
+  <script src="js/store.js"></script>
+  <script src="js/i18n.js"></script>
+  <script src="js/clipaccess.js"></script>
+  <script src="js/compose.js"></script>
+  <script src="js/importers.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/panel.js"></script>
+  <script src="js/app.js"></script>
+  <script>App.init();</script>
+</body>
+</html>

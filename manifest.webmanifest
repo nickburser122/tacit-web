@@ -1,0 +1,18 @@
+{
+  "name": "Tacit",
+  "short_name": "Tacit",
+  "description": "A keyboard-first launcher for the web. Type, press Enter, done.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#1c1b19",
+  "theme_color": "#1c1b19",
+  "icons": [
+    { "src": "icons/tacit.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "icons/tacit-maskable.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Panel", "url": "./?q=%3Epanel&go=1" },
+    { "name": "Clipboard", "url": "./?q=cb%20" }
+  ]
+}
