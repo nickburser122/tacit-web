@@ -1,18 +1,26 @@
 {
+  "id": "./",
   "name": "Tacit",
   "short_name": "Tacit",
-  "description": "A keyboard-first launcher for the web. Type, press Enter, done.",
+  "description": "A quiet start page for the web. Open anything, answer small questions, keep little things.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
-  "background_color": "#1c1b19",
-  "theme_color": "#1c1b19",
+  "orientation": "any",
+  "dir": "auto",
+  "categories": ["productivity", "utilities"],
+  "background_color": "#131211",
+  "theme_color": "#131211",
   "icons": [
-    { "src": "icons/tacit.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
-    { "src": "icons/tacit-maskable.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "icons/tacit.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
   ],
   "shortcuts": [
-    { "name": "Panel", "url": "./?q=%3Epanel&go=1" },
-    { "name": "Clipboard", "url": "./?q=cb%20" }
+    { "name": "New task", "url": "./?q=%2B%20", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" }] },
+    { "name": "Start a timer", "url": "./?q=timer%20", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" }] },
+    { "name": "Clipboard", "url": "./?q=cb%20", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" }] },
+    { "name": "Panel", "url": "./?q=%3Epanel&go=1", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" }] }
   ]
 }

@@ -3,6 +3,6 @@
   <ShortName>Tacit</ShortName>
   <Description>Search with Tacit</Description>
   <InputEncoding>UTF-8</InputEncoding>
-  <Image type="image/svg+xml">icons/tacit.svg</Image>
-  <Url type="text/html" method="get" template="./?q={searchTerms}"/>
+  <Image type="image/svg+xml">https://nickburser122.github.io/tacit-web/icons/tacit.svg</Image>
+  <Url type="text/html" method="get" template="https://nickburser122.github.io/tacit-web/?q={searchTerms}"/>
 </OpenSearchDescription>

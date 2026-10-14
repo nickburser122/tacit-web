@@ -121,6 +121,55 @@
   const bm = Importers.bookmarks('<DL><DT><A HREF="https://a.com" SHORTCUTURL="aa">A</A><DT><A HREF="javascript:x">J</A></DL>');
   check('bookmarks parse', bm.length === 1 && bm[0].aliases[0] === 'aa', bm);
 
+  const dur = q => { const r = Timers.parse(q); return r ? r.seconds + '|' + r.label : null; };
+  const durCases = {
+    'timer 25m': '1500|', '25 min timer tea': '1500|tea', 'timer 1h30': '5400|', 'timer 1h 30m call mom': '5400|call mom',
+    'remind me in 5 minutes to call mom': '300|call mom', 'timer 90s': '90|', 'timer 5:00': '300|', 'timer 10': '600|',
+    'timer 2 hours and 15 minutes': '8100|', '10m': '600|', '1.5h': '5400|', 'pomodoro': '1500|', 'مؤقت ٢٥m': '1500|',
+    'timer': null, 'timer abc': null, '5 min in sec': null, 'timer 0': null, 'timer 100h': null, 'youtube': null, '5 km in miles': null
+  };
+  for (const [q, expected] of Object.entries(durCases)) check('timer parse ' + q, dur(q) === expected, dur(q));
+  check('timer bare flag', Timers.parse('10m')?.bare === true && !Timers.parse('timer 10m')?.bare, Timers.parse('10m'));
+  check('timer format', Timers.format(90) === '1:30' && Timers.format(3661) === '1:01:01' && Timers.format(5) === '0:05', [Timers.format(90), Timers.format(3661), Timers.format(5)]);
+  check('timer remaining', Timers.remaining({ end: 10500 }, 10000) === 1 && Timers.remaining({ end: 9000 }, 10000) === 0, Timers.remaining({ end: 10500 }, 10000));
+
+  const colorOf = q => { const c = Color.parse(q); return c ? c.hex + ' ' + c.rgb + ' ' + c.hsl : null; };
+  check('color hex', colorOf('#c2663a') === '#c2663a rgb(194, 102, 58) hsl(19, 54%, 49%)', colorOf('#c2663a'));
+  check('color short hex', Color.parse('#fff')?.hex === '#ffffff', Color.parse('#fff'));
+  check('color rgb', Color.parse('rgb(255 0 0)')?.hex === '#ff0000' && Color.parse('rgba(0, 255, 0, .5)')?.hex === '#00ff00', Color.parse('rgb(255 0 0)'));
+  check('color hsl', Color.parse('hsl(120, 100%, 50%)')?.hex === '#00ff00' && Color.parse('hsl(0 0% 100%)')?.hex === '#ffffff', Color.parse('hsl(120, 100%, 50%)'));
+  check('color rejects', ['blue', 'abc', '#12', '#gggggg', 'rgb(300,0,0)', 'hsl(10, 120%, 50%)', 'color'].every(q => Color.parse(q) === null), null);
+
+  const at = (h, m) => Sky.at(new Date(2026, 9, 13, h, m || 0));
+  check('sky noon is bright warm day', at(12).day && at(12).intensity > 0.95 && at(12).hue > 30 && at(12).hue < 50, at(12));
+  check('sky dawn is warm', at(7).hue < 45, at(7));
+  check('sky dusk is warm', at(18).hue < 30, at(18));
+  check('sky night is cool and dim', !at(23, 30).day && at(23, 30).hue > 215 && at(23, 30).hue < 235 && at(23, 30).intensity < 0.6, at(23, 30));
+  let skyOk = true;
+  for (let m = 0; m < 1440; m += 7) {
+    const k = Sky.at(new Date(2026, 9, 13, Math.floor(m / 60), m % 60));
+    if (!(k.x >= 10 && k.x <= 90 && k.intensity > 0.1 && k.intensity <= 1 && k.sat >= 30 && k.sat <= 70 && Number.isFinite(k.hue) && Number.isFinite(k.y))) skyOk = false;
+  }
+  check('sky stays in range all day', skyOk, null);
+
+  check('parse task prefix', Compose.parse('+ buy milk', st).scope === 'task' && Compose.parse('+ buy milk', st).text === 'buy milk', Compose.parse('+ buy milk', st));
+  check('parse +5 stays math', Compose.parse('+5', st).scope === 'all' && Compose.parse('+(2*3)', st).scope === 'all', Compose.parse('+5', st));
+  check('compose task add first', Compose.compose('+ buy milk', st).rows[0]?.kind === 'task-add', Compose.compose('+ buy milk', st).rows);
+  const stTasks = Store.fresh();
+  stTasks.tasks.push({ id: 'a', text: 'Buy milk', done: false }, { id: 'b', text: 'Call the bank', done: true, doneAt: 5 });
+  const taskKinds = Compose.compose('+ milk', stTasks).rows.map(r => r.kind).join(',');
+  check('compose task filter', taskKinds === 'task-add,task', taskKinds);
+  const allTasks = Compose.compose('+', stTasks).rows;
+  check('compose task list open first', allTasks.length === 2 && allTasks[0].id === 'a' && allTasks[1].done === true, allTasks);
+  const homeRows = Compose.compose('', st).rows;
+  check('compose home tiles', homeRows.length === 8 && homeRows.every(r => r.kind === 'link'), homeRows.length);
+  check('compose color rows', Compose.compose('#c2663a', st).rows.filter(r => r.kind === 'color').length === 3, Compose.compose('#c2663a', st).rows);
+  check('compose timer row first', Compose.compose('25m timer', st).rows[0]?.kind === 'timer' && Compose.compose('25m timer', st).rows[0].payload.seconds === 1500, Compose.compose('25m timer', st).rows[0]);
+  check('compose math unaffected', Compose.compose('5+5', st).rows[0]?.kind === 'calc', Compose.compose('5+5', st).rows[0]);
+  check('compose conversion unaffected', Compose.compose('5 min in sec', st).rows[0]?.kind === 'calc', Compose.compose('5 min in sec', st).rows[0]);
+  check('zoneOf cities', Calc.zoneOf('tokyo') === 'Asia/Tokyo' && Calc.zoneOf('new york') === 'America/New_York' && Calc.zoneOf('nowhere') === null, Calc.zoneOf('tokyo'));
+  check('store defaults', Array.isArray(st.tasks) && Array.isArray(st.timers) && st.settings.prefixes.tasks === '+' && st.settings.accent === 'ember' && st.settings.worlds === undefined && st.settings.greeting === false, st.settings);
+
   async function clipboardChecks() {
     const realChanged = Store.changed;
     Store.changed = () => {};

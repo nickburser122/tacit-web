@@ -15,7 +15,7 @@ const I18n = (() => {
     add_row: 'Add row', filter: 'Filter', fill_initials: 'Fill initials', export_csv: 'Export CSV', import_csv: 'Import CSV',
     import_bookmarks: 'Import bookmarks', import_vcf: 'Import contacts (.vcf)', shared_aliases: 'Shared aliases',
     rows_imported: '{n} rows imported', remove_row: 'Remove row',
-    set_look: 'Look', set_theme: 'Theme', theme_system: 'System', theme_dark: 'Charcoal', theme_light: 'Cream',
+    set_look: 'Look', set_theme: 'Theme', theme_system: 'System', theme_dark: 'Charcoal', theme_light: 'Bone',
     set_lang: 'Language', lang_auto: 'Automatic', set_bar_bottom: 'Search bar at bottom', set_clock: 'Clock', set_date: 'Date',
     set_results: 'Results', set_search: 'Search', set_fuzzy: 'Typo tolerance', fuzzy_off: 'Off', fuzzy_normal: 'Normal',
     fuzzy_loose: 'Loose', set_translit: 'Arabic ↔ Latin matching', set_actions: 'Actions', set_newtab: 'Open links in a new tab',
@@ -41,11 +41,21 @@ const I18n = (() => {
     clip_hidden: 'Sensitive, hidden', clip_denied: 'Clipboard access denied', clip_empty: 'Clipboard is empty',
     keys_title: 'Keys',
     keys: [
-      ['Enter', 'Open the selected result'], ['Ctrl/⌘ + Enter', 'Open in a new tab'], ['↑ ↓', 'Move'],
+      ['Enter', 'Open the selected result'], ['Ctrl/⌘ + Enter', 'Open in a new tab'], ['← → ↑ ↓', 'Move'],
       ['Tab', 'Actions for the selected result'], ['Esc', 'Clear, then close menus'], ['/', 'Focus search from anywhere'],
       ['Ctrl/⌘ + ,', 'Panel'], ['Alt + 1…9', 'Open result 1 to 9']
     ],
-    prefix_help: 'Prefixes'
+    prefix_help: 'Prefixes',
+    greet_morning: 'Good morning', greet_afternoon: 'Good afternoon', greet_evening: 'Good evening', greet_name: '{g}, {name}',
+    hints: ['Search, calculate, or type a command', 'Try 5 km in miles', 'Try time in tokyo', 'Try 25m timer', 'Try + call the bank', 'Try #3b82a0', 'Try 15% of 340', 'Try days until christmas'],
+    tasks_title: 'Today', task_add: 'Add task', task_added: 'Task added',
+    task_done: 'Done', task_open: 'Mark as not done', task_finish: 'Mark as done', task_remove: 'Remove task', task_clear: 'Clear completed', tasks_cleared: 'Completed tasks cleared',
+    timers_title: 'Timers', timer_start: 'Start timer', timer_started: 'Timer started', timer_focus: 'Focus', timer_done: 'Time is up', timer_stop: 'Stop timer', timer_dismiss: 'Dismiss',
+    cmd_clear_tasks: 'Clear completed tasks', cmd_uuid: 'Copy a new UUID', cmd_password: 'Copy a strong password', cmd_timestamp: 'Copy the Unix timestamp',
+    set_accent: 'Accent colour', accent_ember: 'Ember', accent_hour: 'Follows the hour', accent_sage: 'Sage', accent_azure: 'Azure', accent_rose: 'Rose', accent_graphite: 'Graphite',
+    set_name: 'Your name', set_greeting: 'Greeting', set_home_tasks: 'Tasks on the home screen',
+    set_timers: 'Timers', set_timer_sound: 'Chime when a timer ends', set_timer_notify: 'Notify when a timer ends in another tab',
+    p_tasks: 'Tasks', kind_task: 'Task', kind_timer: 'Timer', kind_color: 'Colour'
   };
 
   const ar = {
@@ -64,7 +74,7 @@ const I18n = (() => {
     add_row: 'إضافة صف', filter: 'تصفية', fill_initials: 'ملء بالأحرف الأولى', export_csv: 'تصدير CSV', import_csv: 'استيراد CSV',
     import_bookmarks: 'استيراد الإشارات المرجعية', import_vcf: 'استيراد جهات الاتصال (.vcf)', shared_aliases: 'أسماء مشتركة',
     rows_imported: 'تم استيراد {n} صف', remove_row: 'حذف الصف',
-    set_look: 'المظهر', set_theme: 'السمة', theme_system: 'حسب النظام', theme_dark: 'فحمي', theme_light: 'كريمي',
+    set_look: 'المظهر', set_theme: 'السمة', theme_system: 'حسب النظام', theme_dark: 'فحمي', theme_light: 'عاجي',
     set_lang: 'اللغة', lang_auto: 'تلقائي', set_bar_bottom: 'شريط البحث في الأسفل', set_clock: 'الساعة', set_date: 'التاريخ',
     set_results: 'عدد النتائج', set_search: 'البحث', set_fuzzy: 'تحمّل الأخطاء الإملائية', fuzzy_off: 'إيقاف', fuzzy_normal: 'عادي',
     fuzzy_loose: 'متساهل', set_translit: 'مطابقة العربية ↔ اللاتينية', set_actions: 'الإجراءات', set_newtab: 'فتح الروابط في علامة تبويب جديدة',
@@ -90,11 +100,21 @@ const I18n = (() => {
     clip_hidden: 'حساس، مخفي', clip_denied: 'تم رفض الوصول إلى الحافظة', clip_empty: 'الحافظة فارغة',
     keys_title: 'المفاتيح',
     keys: [
-      ['Enter', 'فتح النتيجة المحددة'], ['Ctrl/⌘ + Enter', 'فتح في علامة تبويب جديدة'], ['↑ ↓', 'تنقل'],
+      ['Enter', 'فتح النتيجة المحددة'], ['Ctrl/⌘ + Enter', 'فتح في علامة تبويب جديدة'], ['← → ↑ ↓', 'تنقل'],
       ['Tab', 'إجراءات النتيجة المحددة'], ['Esc', 'مسح ثم إغلاق القوائم'], ['/', 'التركيز على البحث من أي مكان'],
       ['Ctrl/⌘ + ,', 'اللوحة'], ['Alt + 1…9', 'فتح النتيجة من 1 إلى 9']
     ],
-    prefix_help: 'البادئات'
+    prefix_help: 'البادئات',
+    greet_morning: 'صباح الخير', greet_afternoon: 'نهارك سعيد', greet_evening: 'مساء الخير', greet_name: '{g}، {name}',
+    hints: ['ابحث أو احسب أو اكتب أمرًا', 'جرّب 5 km in miles', 'جرّب time in tokyo', 'جرّب مؤقت 25m', 'جرّب + اتصل بالبنك', 'جرّب ‎#3b82a0', 'جرّب 15% of 340', 'جرّب days until christmas'],
+    tasks_title: 'اليوم', task_add: 'إضافة مهمة', task_added: 'تمت إضافة المهمة',
+    task_done: 'منجزة', task_open: 'إلغاء الإنجاز', task_finish: 'تحديد كمنجزة', task_remove: 'حذف المهمة', task_clear: 'مسح المنجزة', tasks_cleared: 'تم مسح المهام المنجزة',
+    timers_title: 'المؤقتات', timer_start: 'بدء المؤقت', timer_started: 'بدأ المؤقت', timer_focus: 'تركيز', timer_done: 'انتهى الوقت', timer_stop: 'إيقاف المؤقت', timer_dismiss: 'إغلاق',
+    cmd_clear_tasks: 'مسح المهام المنجزة', cmd_uuid: 'نسخ UUID جديد', cmd_password: 'نسخ كلمة مرور قوية', cmd_timestamp: 'نسخ الطابع الزمني Unix',
+    set_accent: 'لون التمييز', accent_ember: 'جمري', accent_hour: 'يتبع الساعة', accent_sage: 'مريمية', accent_azure: 'لازوردي', accent_rose: 'وردي', accent_graphite: 'رصاصي',
+    set_name: 'اسمك', set_greeting: 'التحية', set_home_tasks: 'المهام في الشاشة الرئيسية',
+    set_timers: 'المؤقتات', set_timer_sound: 'نغمة عند انتهاء المؤقت', set_timer_notify: 'إشعار عند انتهاء المؤقت في تبويب آخر',
+    p_tasks: 'المهام', kind_task: 'مهمة', kind_timer: 'مؤقت', kind_color: 'لون'
   };
 
   let current = 'en';

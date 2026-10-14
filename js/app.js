@@ -1,12 +1,19 @@
 const App = (() => {
   const $ = id => document.getElementById(id);
+  const root = document.documentElement;
   const launcher = $('launcher');
+  const hero = $('hero');
   const input = $('search-input');
   const list = $('results');
+  const home = $('home');
   const hint = $('hint');
+  const greetingEl = $('greeting');
   const clockBlock = $('clock-block');
   const timeEl = $('clock-time');
   const dateEl = $('clock-date');
+  const themeButton = $('theme-button');
+  const themeMetas = document.querySelectorAll('meta[name="theme-color"]');
+  const THEME_COLORS = { dark: '#131211', light: '#ebe9e4' };
 
   let rows = [];
   let selected = 0;
@@ -19,19 +26,19 @@ const App = (() => {
   let pressTimer = null;
   let lastAutoRead = 0;
   let clockSig = '';
-  const themeMetas = document.querySelectorAll('meta[name="theme-color"]');
+  let hintIndex = 0;
 
   const S = () => Store.state.settings;
+  const isHome = () => !input.value.trim();
 
   function applyTheme() {
     const theme = S().theme;
     const dark = theme === 'dark' || (theme === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
     const next = dark ? 'dark' : 'light';
-    const root = document.documentElement;
     if (root.dataset.theme === next) return;
     const paint = () => {
       root.dataset.theme = next;
-      for (const m of themeMetas) m.content = dark ? '#1c1b19' : '#f6f2ea';
+      for (const m of themeMetas) m.content = dark ? THEME_COLORS.dark : THEME_COLORS.light;
     };
     if (document.startViewTransition && document.visibilityState === 'visible' && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
       document.startViewTransition(paint);
@@ -40,22 +47,32 @@ const App = (() => {
     }
   }
 
+  function toggleTheme() {
+    S().theme = root.dataset.theme === 'dark' ? 'light' : 'dark';
+    Store.changed('settings');
+  }
+
   function applyLight() {
     const s = S();
     applyTheme();
     I18n.apply(s.lang);
     launcher.classList.toggle('bar-bottom', s.barBottom);
     launcher.classList.toggle('bar-top', !s.barBottom);
-    input.placeholder = I18n.t('search');
+    input.placeholder = I18n.t('hints')[hintIndex] || I18n.t('search');
+    document.querySelector('label[for="search-input"]').textContent = I18n.t('search');
     $('panel-button').setAttribute('aria-label', I18n.t('panel'));
+    themeButton.setAttribute('aria-label', I18n.t('cmd_theme'));
+    themeButton.title = I18n.t('cmd_theme');
     clockBlock.hidden = !s.clock && !s.date;
     timeEl.hidden = !s.clock;
     dateEl.hidden = !s.date;
+    greetingEl.hidden = !s.greeting;
+    hero.hidden = !s.clock && !s.date && !s.greeting;
     Engine.configure({
       strictness: s.strictness, transliterate: s.transliterate, kindOrder: s.kindOrder,
       usage: s.learn ? Store.state.usage : {}
     });
-    const sig = I18n.lang + '|' + s.clock + '|' + s.date;
+    const sig = [I18n.lang, s.clock, s.date, s.greeting, s.name, s.accent].join('|');
     tick(sig !== clockSig);
     clockSig = sig;
   }
@@ -70,26 +87,34 @@ const App = (() => {
     reindex();
   }
 
+  function greetingText(now) {
+    const h = now.getHours();
+    const g = I18n.t(h >= 5 && h < 12 ? 'greet_morning' : h >= 12 && h < 17 ? 'greet_afternoon' : 'greet_evening');
+    const name = S().name.trim();
+    return name ? I18n.t('greet_name', { g, name }) : g;
+  }
+
   function tick(force) {
-    if (clockBlock.hidden) return;
     const now = new Date();
     const minute = now.getHours() * 60 + now.getMinutes();
     if (!force && minute === lastMinute) return;
     lastMinute = minute;
-    if (fmtLang !== I18n.lang) {
-      timeFmt = new Intl.DateTimeFormat(I18n.lang, { hour: '2-digit', minute: '2-digit' });
-      dateFmt = new Intl.DateTimeFormat(I18n.lang, { weekday: 'long', day: 'numeric', month: 'long' });
-      fmtLang = I18n.lang;
+    Sky.apply(root, now, S().accent);
+    greetingEl.textContent = greetingText(now);
+    if (!clockBlock.hidden) {
+      if (fmtLang !== I18n.lang) {
+        timeFmt = new Intl.DateTimeFormat(I18n.lang, { hour: 'numeric', minute: '2-digit' });
+        dateFmt = new Intl.DateTimeFormat(I18n.lang, { weekday: 'long', day: 'numeric', month: 'long' });
+        fmtLang = I18n.lang;
+      }
+      const nodes = timeFmt.formatToParts(now).map(part => {
+        if (part.type === 'dayPeriod') return UI.el('span', { class: 'period', text: part.value });
+        if (part.type === 'literal' && part.value.trim() === ':') return UI.el('span', { class: 'colon', text: ':' });
+        return document.createTextNode(part.value);
+      });
+      timeEl.replaceChildren(...nodes);
+      dateEl.textContent = dateFmt.format(now);
     }
-    const nodes = timeFmt.formatToParts(now).map(part => {
-      if (part.type !== 'dayPeriod') return document.createTextNode(part.value);
-      const span = document.createElement('span');
-      span.className = 'period';
-      span.textContent = part.value;
-      return span;
-    });
-    timeEl.replaceChildren(...nodes);
-    dateEl.textContent = dateFmt.format(now);
   }
 
   function flash(text, ms) {
@@ -98,43 +123,169 @@ const App = (() => {
     hintTimer = setTimeout(() => { hint.textContent = ''; }, ms || 1400);
   }
 
+  function updateTitle() {
+    const timers = Store.state.timers;
+    let title = 'Tacit';
+    const finished = timers.find(t => t.done);
+    const running = timers.filter(t => !t.done).sort((a, b) => a.end - b.end)[0];
+    if (finished) title = '✓ ' + (finished.label || I18n.t('timer_done')) + ' · Tacit';
+    else if (running) title = Timers.format(Timers.remaining(running, Date.now())) + ' · Tacit';
+    if (document.title !== title) document.title = title;
+  }
+
+  function hueOffset(label) {
+    let h = 0;
+    for (const c of label) h = (h * 31 + c.codePointAt(0)) >>> 0;
+    return (h % 25) - 12;
+  }
+
+  function nextPlaceholder() {
+    const hints = I18n.t('hints');
+    hintIndex = (hintIndex + 1) % hints.length;
+    input.placeholder = hints[hintIndex];
+  }
+
   function render() {
-    const bottom = S().barBottom;
+    const homeMode = isHome();
+    list.classList.toggle('tiles', homeMode);
     const fragment = document.createDocumentFragment();
     const count = rows.length;
+    const reverse = S().barBottom && !homeMode;
     for (let i = 0; i < count; i++) {
-      const logical = bottom ? count - 1 - i : i;
-      fragment.append(renderRow(rows[logical], logical));
+      const logical = reverse ? count - 1 - i : i;
+      fragment.append(homeMode ? renderTile(rows[logical], logical) : renderRow(rows[logical], logical));
     }
-    if (!count && !input.value.trim()) fragment.append(emptyNode());
     list.replaceChildren(fragment);
+    if (homeMode) renderHome();
+    else home.hidden = true;
     updateSelection();
   }
 
-  function emptyNode() {
-    const p = S().prefixes;
-    const entries = [[p.calc, 'calc', 'p_calc'], [p.people, 'people', 'p_people'], [p.snippets, 'snippet', 'p_snippets'],
-      [p.commands, 'command', 'p_commands'], [p.clip, 'clip', 'p_clip']].filter(([k]) => k && k.trim());
-    return UI.el('li', { class: 'empty', role: 'presentation' },
-      ...entries.map(([k, icon, label]) => UI.el('button', {
-        type: 'button', class: 'chip', 'data-prefix': k, title: I18n.t(label), 'aria-label': I18n.t(label)
-      }, UI.el('kbd', { text: k.trim() }), UI.el('span', { class: 'chip-icon', html: UI.icons[icon] || UI.icons.action }))));
+  function glyphNode(item) {
+    const glyph = UI.el('div', { class: 'glyph', 'aria-hidden': 'true' });
+    const content = UI.glyphFor(item);
+    glyph.append(content);
+    if (content.nodeType === 3 && [...content.textContent].length > 1) glyph.classList.add('duo');
+    return glyph;
+  }
+
+  function renderTile(item, logical) {
+    const li = UI.el('li', {
+      class: 'tile ' + item.kind + (item.pinned ? ' pinned' : ''), role: 'option', id: 'r-' + logical, 'data-index': logical,
+      'aria-selected': logical === selected ? 'true' : 'false'
+    });
+    li.style.setProperty('--o', hueOffset(item.label));
+    li.append(glyphNode(item), UI.el('div', { class: 'title', text: item.label, dir: 'auto' }));
+    if (logical < 9) li.append(UI.el('kbd', { class: 'num', text: String(logical + 1), 'aria-hidden': 'true' }));
+    return li;
   }
 
   function renderRow(item, logical) {
     const li = UI.el('li', {
-      class: 'result ' + item.kind + (item.pinned ? ' pinned' : ''), role: 'option', id: 'r-' + logical, 'data-index': logical,
-      'aria-selected': logical === selected ? 'true' : 'false'
+      class: 'result ' + item.kind + (item.pinned ? ' pinned' : '') + (item.done ? ' done' : ''), role: 'option', id: 'r-' + logical,
+      'data-index': logical, 'aria-selected': logical === selected ? 'true' : 'false'
     });
-    const glyph = UI.el('div', { class: 'glyph', 'aria-hidden': 'true' });
-    glyph.append(UI.glyphFor(item));
     const texts = UI.el('div', { class: 'texts' },
       UI.el('div', { class: 'title', text: item.label, dir: 'auto' }),
       item.sub ? UI.el('div', { class: 'sub', text: item.sub, dir: 'auto' }) : null
     );
-    li.append(glyph, texts);
+    li.append(glyphNode(item), texts);
     if (item.kind === 'person') li.append(personActions(item));
     return li;
+  }
+
+  function blockHead(title, count) {
+    return UI.el('div', { class: 'block-head' }, UI.el('h2', { text: title }), count === undefined ? null : UI.el('span', { text: String(count) }));
+  }
+
+  function taskNode(task) {
+    const t = I18n.t;
+    return UI.el('li', { class: 'task' + (task.done ? ' done' : ''), 'data-id': task.id },
+      UI.el('button', { type: 'button', class: 'task-check', role: 'checkbox', 'aria-checked': task.done ? 'true' : 'false',
+        'aria-label': task.done ? t('task_open') : t('task_finish') }),
+      UI.el('span', { class: 'task-text', text: task.text, dir: 'auto' }),
+      UI.el('button', { type: 'button', class: 'remove-btn task-remove', 'aria-label': t('task_remove'), title: t('task_remove'), html: UI.icons.close })
+    );
+  }
+
+  function tasksBlock() {
+    const tasks = Store.state.tasks;
+    if (!tasks.length) return null;
+    const open = tasks.filter(t => !t.done);
+    const recent = tasks.filter(t => t.done).sort((a, b) => (b.doneAt || 0) - (a.doneAt || 0)).slice(0, 3);
+    return UI.el('section', { class: 'block', 'aria-label': I18n.t('tasks_title') },
+      blockHead(I18n.t('tasks_title'), open.length),
+      UI.el('ul', { class: 'tasks' }, ...[...open.slice(0, 6), ...recent].map(taskNode)));
+  }
+
+  function timerNode(timer, now) {
+    const ring = UI.el('span', { html: '<svg class="ring" viewBox="0 0 44 44" aria-hidden="true"><circle class="track" cx="22" cy="22" r="19"/><circle class="prog" cx="22" cy="22" r="19" pathLength="100"/></svg>' });
+    const li = UI.el('li', { class: 'timer' + (timer.done ? ' done' : ''), 'data-timer': timer.id },
+      ring.firstChild,
+      UI.el('div', { class: 'texts' },
+        UI.el('div', { class: 'time', text: timer.done ? I18n.t('timer_done') : Timers.format(Timers.remaining(timer, now)) }),
+        timer.label ? UI.el('div', { class: 'sub', text: timer.label, dir: 'auto' }) : null),
+      UI.el('button', { type: 'button', class: 'remove-btn timer-dismiss', 'aria-label': timer.done ? I18n.t('timer_dismiss') : I18n.t('timer_stop'),
+        title: timer.done ? I18n.t('timer_dismiss') : I18n.t('timer_stop'), html: UI.icons.close })
+    );
+    li.querySelector('.prog').style.strokeDashoffset = timer.done ? 0 : String(100 * (1 - Timers.remaining(timer, now) / timer.total));
+    return li;
+  }
+
+  function timersBlock(now) {
+    const timers = Store.state.timers;
+    if (!timers.length) return null;
+    return UI.el('section', { class: 'block', 'aria-label': I18n.t('timers_title') },
+      blockHead(I18n.t('timers_title'), timers.length), UI.el('ul', { class: 'timers' }, ...timers.map(t => timerNode(t, now))));
+  }
+
+  function renderHome() {
+    const now = Date.now();
+    const blocks = [];
+    const tasks = S().homeTasks ? tasksBlock() : null;
+    if (tasks) blocks.push(tasks);
+    const timers = timersBlock(now);
+    if (timers) blocks.push(timers);
+    home.replaceChildren(...blocks);
+    home.hidden = !blocks.length;
+  }
+
+  function updateTimers(now) {
+    for (const li of home.querySelectorAll('.timer:not(.done)')) {
+      const timer = Store.state.timers.find(t => t.id === li.dataset.timer);
+      if (!timer) continue;
+      const left = Timers.remaining(timer, now);
+      li.querySelector('.time').textContent = Timers.format(left);
+      li.querySelector('.prog').style.strokeDashoffset = String(100 * (1 - left / timer.total));
+    }
+  }
+
+  function addTask(text) {
+    const value = String(text).trim();
+    if (!value) return false;
+    Store.state.tasks.push({ id: Store.uid(), text: value, done: false, created: Date.now() });
+    Store.changed('tasks');
+    return true;
+  }
+
+  function toggleTask(id) {
+    const task = Store.state.tasks.find(t => t.id === id);
+    if (!task) return;
+    task.done = !task.done;
+    task.doneAt = task.done ? Date.now() : 0;
+    Store.changed('tasks');
+  }
+
+  function removeTask(id) {
+    Store.state.tasks = Store.state.tasks.filter(t => t.id !== id);
+    Store.changed('tasks');
+  }
+
+  function clearDone() {
+    const before = Store.state.tasks.length;
+    Store.state.tasks = Store.state.tasks.filter(t => !t.done);
+    if (Store.state.tasks.length !== before) Store.changed('tasks');
+    flash(I18n.t('tasks_cleared'));
   }
 
   function personActions(item) {
@@ -193,10 +344,11 @@ const App = (() => {
     }
   }
 
-  function run() {
+  function run(keep) {
     if (stale) reindex();
     rows = Compose.compose(input.value, Store.state).rows;
-    selected = 0;
+    selected = keep ? Math.min(selected, Math.max(0, rows.length - 1)) : 0;
+    launcher.classList.toggle('searching', !isHome());
     render();
   }
 
@@ -252,6 +404,33 @@ const App = (() => {
     });
   }
 
+  function randomUuid() {
+    if (crypto.randomUUID) return crypto.randomUUID();
+    const b = crypto.getRandomValues(new Uint8Array(16));
+    b[6] = (b[6] & 15) | 64;
+    b[8] = (b[8] & 63) | 128;
+    const h = [...b].map(x => x.toString(16).padStart(2, '0')).join('');
+    return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
+  }
+
+  function randomPassword(length) {
+    const sets = ['abcdefghijkmnopqrstuvwxyz', 'ABCDEFGHJKLMNPQRSTUVWXYZ', '23456789', '!?#$%&*-_+='];
+    const all = sets.join('');
+    const buf = new Uint8Array(1);
+    const limit = 256 - (256 % all.length);
+    const pick = () => {
+      for (;;) {
+        crypto.getRandomValues(buf);
+        if (buf[0] < limit) return all[buf[0] % all.length];
+      }
+    };
+    for (;;) {
+      let out = '';
+      for (let i = 0; i < length; i++) out += pick();
+      if (sets.every(set => [...set].some(c => out.includes(c)))) return out;
+    }
+  }
+
   async function activate(item, newTab) {
     if (!item) return;
     if (!item.transient) Store.touch(item.key);
@@ -283,6 +462,9 @@ const App = (() => {
       case 'calc':
         copy(item.payload);
         break;
+      case 'color':
+        copy(item.payload);
+        break;
       case 'snippet': {
         let clip = '';
         let fallback = false;
@@ -299,6 +481,21 @@ const App = (() => {
         break;
       case 'command':
         command(item.payload);
+        break;
+      case 'task-add':
+        if (addTask(item.payload)) flash(I18n.t('task_added'));
+        input.value = S().prefixes.tasks + ' ';
+        run();
+        input.focus();
+        break;
+      case 'task':
+        toggleTask(item.id);
+        break;
+      case 'timer':
+        Timers.start(item.payload);
+        flash(I18n.t('timer_started'));
+        input.value = '';
+        run();
         break;
     }
   }
@@ -328,8 +525,12 @@ const App = (() => {
     }
     if (item.kind === 'snippet') entries.push([t('edit'), () => Panel.open('snippets', item.id)]);
     if (item.kind === 'link') entries.push([t('edit'), () => Panel.open('links', item.id)]);
-    if (item.kind === 'calc') entries.push([t('copy'), () => copy(item.payload)]);
+    if (item.kind === 'calc' || item.kind === 'color') entries.push([t('copy'), () => copy(item.payload)]);
     if (item.kind === 'web' && !item.isEngine) entries.push([t('copy') + ': ' + item.label, () => copy(item.label)]);
+    if (item.kind === 'task') {
+      entries.push([item.done ? t('task_open') : t('task_finish'), () => toggleTask(item.id)]);
+      entries.push([t('task_remove'), () => removeTask(item.id)]);
+    }
     if (item.kind === 'clip') {
       entries.push([t('saveSnippet'), () => {
         Store.state.snippets.push({ id: Store.uid(), trigger: '', title: '', body: item.payload, aliases: [] });
@@ -453,6 +654,7 @@ const App = (() => {
       const data = JSON.parse(text);
       delete data.tacit_backup;
       Store.replace(data);
+      Timers.restore();
       flash(I18n.t('saved'));
     } catch (e) {
       flash('JSON?');
@@ -462,13 +664,7 @@ const App = (() => {
   function command(id) {
     switch (id) {
       case 'panel': Panel.open(); break;
-      case 'theme': {
-        const order = ['system', 'dark', 'light'];
-        S().theme = order[(order.indexOf(S().theme) + 1) % order.length];
-        Store.changed('settings');
-        flash(I18n.t('theme_' + S().theme));
-        break;
-      }
+      case 'theme': toggleTheme(); break;
       case 'clock': S().clock = !S().clock; Store.changed('settings'); break;
       case 'lang': S().lang = I18n.lang === 'ar' ? 'en' : 'ar'; Store.changed(); break;
       case 'add-link': addLink(); break;
@@ -478,6 +674,10 @@ const App = (() => {
       case 'clear-clip':
         if (confirm(I18n.t('data_clear_clip_confirm'))) { Store.state.clips = []; Store.changed('clips'); }
         break;
+      case 'clear-tasks': clearDone(); break;
+      case 'uuid': copy(randomUuid()); break;
+      case 'password': copy(randomPassword(20)); break;
+      case 'timestamp': copy(String(Math.floor(Date.now() / 1000))); break;
       case 'export': exportAll(); break;
       case 'import': importAll(); break;
       case 'keys': UI.info(I18n.t('keys_title'), UI.keysNode()); break;
@@ -495,19 +695,24 @@ const App = (() => {
     updateSelection();
   }
 
+  function columns() {
+    const tracks = getComputedStyle(list).gridTemplateColumns;
+    return tracks && tracks !== 'none' ? tracks.split(' ').length : 1;
+  }
+
+  function moveGrid(dx, dy) {
+    if (!rows.length) return;
+    const flip = root.dir === 'rtl' ? -1 : 1;
+    selected = Math.max(0, Math.min(rows.length - 1, selected + dx * flip + dy * columns()));
+    updateSelection();
+  }
+
   function rowOf(target) {
-    const li = target.closest('.result');
+    const li = target.closest('.result, .tile');
     return li ? { li, index: Number(li.dataset.index) } : null;
   }
 
   list.addEventListener('click', e => {
-    const chip = e.target.closest('.chip');
-    if (chip) {
-      input.value = chip.dataset.prefix;
-      run();
-      input.focus();
-      return;
-    }
     const hit = rowOf(e.target);
     const item = hit && rows[hit.index];
     if (!item) return;
@@ -548,12 +753,24 @@ const App = (() => {
   list.addEventListener('touchcancel', cancelPress);
   list.addEventListener('touchmove', cancelPress, { passive: true });
 
-  input.addEventListener('input', run);
+  home.addEventListener('click', e => {
+    const check = e.target.closest('.task-check');
+    if (check) { toggleTask(check.closest('.task').dataset.id); return; }
+    const remove = e.target.closest('.task-remove');
+    if (remove) { removeTask(remove.closest('.task').dataset.id); return; }
+    const stop = e.target.closest('.timer-dismiss');
+    if (stop) Timers.dismiss(stop.closest('.timer').dataset.timer);
+  });
+
+  input.addEventListener('input', () => run());
 
   input.addEventListener('keydown', e => {
     if (e.isComposing) return;
-    if (e.key === 'ArrowDown') { e.preventDefault(); move(1); }
-    else if (e.key === 'ArrowUp') { e.preventDefault(); move(-1); }
+    const homeMode = isHome();
+    if (e.key === 'ArrowDown') { e.preventDefault(); if (homeMode) moveGrid(0, 1); else move(1); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); if (homeMode) moveGrid(0, -1); else move(-1); }
+    else if (homeMode && e.key === 'ArrowRight') { e.preventDefault(); moveGrid(1, 0); }
+    else if (homeMode && e.key === 'ArrowLeft') { e.preventDefault(); moveGrid(-1, 0); }
     else if (e.key === 'Enter') { e.preventDefault(); activate(rows[selected], e.ctrlKey || e.metaKey); }
     else if (e.key === 'Tab' && rows[selected]) {
       e.preventDefault();
@@ -571,9 +788,11 @@ const App = (() => {
 
   $('search-bar').addEventListener('submit', e => e.preventDefault());
   $('panel-button').addEventListener('click', () => Panel.open());
+  themeButton.addEventListener('click', () => { toggleTheme(); input.focus({ preventScroll: true }); });
 
   document.addEventListener('keydown', e => {
     if ((e.ctrlKey || e.metaKey) && e.key === ',') { e.preventDefault(); Panel.toggle(); return; }
+    if (e.altKey && !e.ctrlKey && !e.metaKey && e.code === 'KeyT') { e.preventDefault(); toggleTheme(); return; }
     const typing = e.target.closest('input, textarea, select, [contenteditable]');
     if (Panel.isOpen() || UI.menuOpen || document.querySelector('.dialog-backdrop')) return;
     if (!typing && e.key === '/') { e.preventDefault(); input.focus(); return; }
@@ -603,15 +822,22 @@ const App = (() => {
   });
 
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible' && !Panel.isOpen()) {
-      tick();
-      input.focus({ preventScroll: true });
-    }
+    if (document.visibilityState !== 'visible') return;
+    tick();
+    updateTimers(Date.now());
+    updateTitle();
+    if (!Panel.isOpen()) input.focus({ preventScroll: true });
   });
 
   matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
 
   Store.onChange(scope => {
+    if (scope === 'tasks' || scope === 'timers') {
+      if (isHome()) renderHome();
+      else if (!Panel.isOpen() && Compose.parse(input.value, Store.state).scope === 'task') run(true);
+      updateTitle();
+      return;
+    }
     applyLight();
     if (scope === 'settings') return;
     if (scope === 'all') stale = true;
@@ -632,10 +858,20 @@ const App = (() => {
   function init() {
     Store.state.clips = prune(Store.state.clips);
     Store.pruneUsage();
+    Timers.on({
+      tick: now => { updateTimers(now); updateTitle(); },
+      finish: timer => flash(I18n.t('timer_done') + (timer.label ? ': ' + timer.label : ''), 6000)
+    });
     applySettings();
+    Timers.restore();
     if (!handleUrlQuery()) run();
+    updateTitle();
     input.focus({ preventScroll: true });
+    const unlock = () => { if (Timers.running().length) Timers.unlock(); };
+    document.addEventListener('pointerdown', unlock, { once: true, capture: true });
+    document.addEventListener('keydown', unlock, { once: true, capture: true });
     setInterval(() => { if (!document.hidden) tick(); }, 15000);
+    setInterval(() => { if (!document.hidden && !input.value) nextPlaceholder(); }, 7000);
     if ('serviceWorker' in navigator && window.isSecureContext) {
       navigator.serviceWorker.register('sw.js').catch(() => {});
     }

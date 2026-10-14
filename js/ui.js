@@ -8,6 +8,10 @@ const UI = (() => {
     calc: svg('<rect x="5" y="3.5" width="14" height="17" rx="3"/><path d="M8.5 8h7"/><path stroke-width="2" d="M9 12.5h.01M12 12.5h.01M15 12.5h.01M9 16h.01M12 16h.01M15 16h.01"/>'),
     web: svg('<circle cx="12" cy="12" r="8"/><path d="M4 12h16M12 4c2.5 2.5 2.5 13.5 0 16M12 4c-2.5 2.5-2.5 13.5 0 16"/>'),
     clip: svg('<rect x="7" y="5" width="10" height="15" rx="2"/><path d="M10 5V4h4v1"/>'),
+    task: svg('<circle cx="12" cy="12" r="8"/><path d="M8.6 12.4l2.3 2.3 4.5-5"/>'),
+    timer: svg('<circle cx="12" cy="13.5" r="6.5"/><path d="M12 10.5v3.2l2.2 1.5M9.8 3.8h4.4"/>'),
+    color: svg('<path d="M12 4.2c2.9 3.8 5.4 6.4 5.4 9.2a5.4 5.4 0 0 1-10.8 0c0-2.8 2.5-5.4 5.4-9.2z"/>'),
+    close: svg('<path d="M7 7l10 10M17 7L7 17"/>'),
     action: svg('<path d="M9 6l6 6-6 6"/>'),
     call: svg('<path d="M6 4h3l2 5-2 1a11 11 0 0 0 5 5l1-2 5 2v3a2 2 0 0 1-2 2A16 16 0 0 1 4 6a2 2 0 0 1 2-2z"/>'),
     message: svg('<path d="M4 6h16v10H9l-5 4z"/>'),
@@ -23,16 +27,26 @@ const UI = (() => {
     keys: svg('<rect x="3.5" y="7" width="17" height="10" rx="2.5"/><path stroke-width="2" d="M7 11h.01M10.5 11h.01M14 11h.01M17 11h.01"/><path d="M8 14h8"/>')
   };
 
+  const kindIcon = { 'task-add': 'plus' };
+
   function glyphFor(item) {
+    if (item.kind === 'color') {
+      const swatch = document.createElement('span');
+      swatch.className = 'swatch';
+      swatch.style.background = item.swatch;
+      return swatch;
+    }
     if (item.kind === 'person') {
       const initials = item.label.split(/\s+/).filter(Boolean).slice(0, 2).map(w => [...w][0]).join('').toUpperCase();
       return document.createTextNode(initials || '·');
     }
     if (item.kind === 'link') {
-      const first = [...item.label.trim()][0];
-      return document.createTextNode((first || '·').toUpperCase());
+      const words = item.label.trim().split(/\s+/).filter(Boolean);
+      const parts = words.length > 1 ? words : Norm.splitCamel(item.label.trim()).split(/\s+/).filter(Boolean);
+      const letters = parts.slice(0, 2).map(w => [...w][0]).join('').toUpperCase();
+      return document.createTextNode(letters || '·');
     }
-    const name = icons[item.kind] ? item.kind : 'action';
+    const name = kindIcon[item.kind] || (icons[item.kind] ? item.kind : 'action');
     let template = glyphCache[name];
     if (!template) {
       const span = document.createElement('span');
@@ -232,7 +246,7 @@ const UI = (() => {
     const p = Store.state.settings.prefixes;
     const engines = Store.state.engines.filter(e => e.prefix).map(e => [e.prefix + ' ⎵', e.name]);
     for (const [k, d] of [[p.calc, I18n.t('p_calc')], [p.clip.trim() + ' ⎵', I18n.t('p_clip')], [p.people, I18n.t('p_people')],
-      [p.snippets, I18n.t('p_snippets')], [p.commands, I18n.t('p_commands')], ...engines]) {
+      [p.snippets, I18n.t('p_snippets')], [p.commands, I18n.t('p_commands')], [p.tasks.trim() + ' ⎵', I18n.t('p_tasks')], ...engines]) {
       list.append(el('kbd', { text: k }), el('span', { text: d }));
     }
     return list;

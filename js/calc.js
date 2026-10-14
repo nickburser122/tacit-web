@@ -503,7 +503,7 @@ const Calc = (() => {
   }
 
   return {
-    evaluate, looksLikeMath, format,
+    evaluate, looksLikeMath, format, zoneOf,
     setClock: fn => { clock = fn; },
     setDecimals: n => { decimals = n; }
   };

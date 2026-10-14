@@ -96,7 +96,7 @@
   transition: border-color 0.15s, box-shadow 0.15s;
 }
 
-.toolbar input[type="search"]:focus { border-color: var(--ring); box-shadow: 0 0 0 4px var(--hover); }
+.toolbar input[type="search"]:focus { border-color: color-mix(in srgb, var(--accent) 55%, var(--line)); box-shadow: 0 0 0 4px var(--accent-soft); }
 
 .tool-btn {
   display: grid;
@@ -171,7 +171,7 @@ table.grid {
 
 .grid td textarea { min-height: 42px; height: 42px; line-height: 1.4; }
 
-.grid td input:focus, .grid td textarea:focus { background: var(--surface); box-shadow: inset 0 0 0 1px var(--fg); }
+.grid td input:focus, .grid td textarea:focus { background: var(--surface); box-shadow: inset 0 0 0 1px var(--accent); }
 
 .grid td.readonly { padding: 12px 10px; color: var(--fg); white-space: nowrap; }
 
@@ -195,7 +195,7 @@ table.grid {
   transition: background-color 0.12s, border-color 0.12s;
 }
 
-.grid td.cell-center input[type="checkbox"]:checked { background: var(--fg); border-color: var(--fg); }
+.grid td.cell-center input[type="checkbox"]:checked { background: var(--accent); border-color: var(--accent); }
 
 .grid td.cell-center input[type="checkbox"]:checked::after {
   content: "";
@@ -204,7 +204,7 @@ table.grid {
   top: 1.5px;
   width: 4px;
   height: 8px;
-  border: solid var(--bg);
+  border: solid var(--on-accent);
   border-width: 0 2px 2px 0;
   transform: rotate(45deg);
 }
@@ -225,7 +225,7 @@ table.grid {
 
 .row-remove:hover { color: var(--fg); background: var(--surface); }
 
-.conflict input { box-shadow: inset 3px 0 0 var(--fg); }
+.conflict input { box-shadow: inset 3px 0 0 var(--accent); }
 
 .settings { display: grid; gap: 28px; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
 
@@ -267,7 +267,7 @@ table.grid {
 
 .setting input:hover { border-color: var(--ring); }
 
-.setting input:focus { border-color: var(--fg); }
+.setting input:focus { border-color: var(--accent); }
 
 .switch { position: relative; width: 44px; height: 26px; flex: 0 0 44px; }
 
@@ -294,13 +294,13 @@ table.grid {
   transition: transform 0.2s var(--ease), background-color 0.18s;
 }
 
-.switch input:checked + span { background: var(--fg); border-color: var(--fg); }
+.switch input:checked + span { background: var(--accent); border-color: var(--accent); }
 
-.switch input:checked + span::after { background: var(--bg); transform: translateX(18px); }
+.switch input:checked + span::after { background: var(--on-accent); transform: translateX(18px); }
 
 :root[dir="rtl"] .switch input:checked + span::after { transform: translateX(-18px); }
 
-.switch input:focus-visible + span { outline: 2px solid var(--fg); outline-offset: 2px; }
+.switch input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 .order-list { display: flex; flex-wrap: wrap; gap: 6px; padding: 12px 0; }
 

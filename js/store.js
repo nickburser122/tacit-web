@@ -25,12 +25,20 @@ const Store = (() => {
     ['F-Droid', 'https://f-droid.org', '']
   ].map(([name, url, aliases]) => ({ id: uid(), name, url, aliases: splitList(aliases), pinned: false }));
 
+  const coarse = () => {
+    try { return matchMedia('(pointer: coarse)').matches; } catch (e) { return false; }
+  };
+
   const defaultSettings = () => ({
     theme: 'system',
     lang: 'auto',
-    barBottom: true,
+    accent: 'ember',
+    name: '',
+    greeting: false,
+    homeTasks: true,
+    barBottom: coarse(),
     clock: true,
-    date: false,
+    date: true,
     results: 8,
     strictness: 'normal',
     transliterate: true,
@@ -44,9 +52,11 @@ const Store = (() => {
     clipDenied: 0,
     clipDays: 0,
     clipMax: 200,
+    timerSound: true,
+    timerNotify: true,
     sensitivePolicy: 'skip',
     kindOrder: ['link', 'person', 'snippet', 'command', 'action', 'calc', 'web', 'clip'],
-    prefixes: { calc: '=', clip: 'cb ', people: '@', snippets: ';', commands: '>' }
+    prefixes: { calc: '=', clip: 'cb ', people: '@', snippets: ';', commands: '>', tasks: '+' }
   });
 
   function splitList(text) {
@@ -64,6 +74,8 @@ const Store = (() => {
       commandAliases: {},
       pins: [],
       clips: [],
+      tasks: [],
+      timers: [],
       usage: {}
     };
   }
@@ -83,7 +95,7 @@ const Store = (() => {
     const out = { ...base, ...data };
     out.settings = { ...base.settings, ...(data.settings || {}) };
     out.settings.prefixes = { ...base.settings.prefixes, ...((data.settings || {}).prefixes || {}) };
-    for (const k of ['links', 'people', 'snippets', 'engines', 'clips', 'pins']) if (!Array.isArray(out[k])) out[k] = base[k];
+    for (const k of ['links', 'people', 'snippets', 'engines', 'clips', 'pins', 'tasks', 'timers']) if (!Array.isArray(out[k])) out[k] = base[k];
     if (!out.commandAliases || typeof out.commandAliases !== 'object') out.commandAliases = {};
     out.usage = cleanUsage(data.usage);
     return out;

@@ -7,6 +7,10 @@ const Compose = (() => {
     { id: 'add-link', key: 'cmd_add_link', extra: ['bookmark', 'new link'] },
     { id: 'add-person', key: 'cmd_add_person', extra: ['contact', 'new contact'] },
     { id: 'add-snippet', key: 'cmd_add_snippet', extra: ['new snippet', 'text'] },
+    { id: 'clear-tasks', key: 'cmd_clear_tasks', extra: ['done', 'completed', 'todo', 'tasks'] },
+    { id: 'uuid', key: 'cmd_uuid', extra: ['guid', 'random', 'id'] },
+    { id: 'password', key: 'cmd_password', extra: ['pass', 'secure', 'random', 'generator'] },
+    { id: 'timestamp', key: 'cmd_timestamp', extra: ['unix', 'epoch', 'time'] },
     { id: 'save-clip', key: 'cmd_save_clip', extra: ['paste', 'clipboard'] },
     { id: 'clear-clip', key: 'cmd_clear_clip', extra: ['clipboard', 'wipe'] },
     { id: 'export', key: 'cmd_export', extra: ['backup', 'json'] },
@@ -48,14 +52,31 @@ const Compose = (() => {
     return items;
   }
 
+  function homeItems(max) {
+    const hits = Engine.search('', max).map(h => h.item);
+    const seen = new Set(hits.map(i => i.key));
+    const least = Math.min(max, 8);
+    if (hits.length < least) {
+      for (const it of Engine.all()) {
+        if (it.kind !== 'link' || seen.has(it.key)) continue;
+        hits.push(it);
+        seen.add(it.key);
+        if (hits.length >= least) break;
+      }
+    }
+    return hits;
+  }
+
   function parse(raw, state) {
     const p = state.settings.prefixes;
     const trimmed = raw.replace(/^\s+/, '');
     const scoped = [
-      [p.clip, 'clip'], [p.calc, 'calc'], [p.people, 'person'], [p.snippets, 'snippet'], [p.commands, 'command']
+      [p.clip, 'clip'], [p.calc, 'calc'], [p.people, 'person'], [p.snippets, 'snippet'], [p.commands, 'command'], [p.tasks, 'task']
     ].filter(([prefix]) => prefix).sort((a, b) => b[0].length - a[0].length);
     for (const [prefix, scope] of scoped) {
-      if (trimmed.toLowerCase().startsWith(prefix.toLowerCase())) return { scope, text: trimmed.slice(prefix.length).trim() };
+      if (!trimmed.toLowerCase().startsWith(prefix.toLowerCase())) continue;
+      if (scope === 'task' && /[\d.(]/.test(trimmed.charAt(prefix.length))) continue;
+      return { scope, text: trimmed.slice(prefix.length).trim() };
     }
     const engines = [...state.engines].filter(e => e.prefix).sort((a, b) => b.prefix.length - a.prefix.length);
     for (const e of engines) {
@@ -80,6 +101,12 @@ const Compose = (() => {
     }
     if (/^(localhost|\d{1,3}(\.\d{1,3}){3})(:\d+)?(\/\S*)?$/i.test(v)) return { type: 'url', value: 'http://' + v };
     return null;
+  }
+
+  function colorRows(c) {
+    return [['HEX', c.hex], ['RGB', c.rgb], ['HSL', c.hsl]].map(([name, value]) => ({
+      key: 'color:' + name, kind: 'color', label: value, sub: name, payload: value, swatch: c.hex, transient: true
+    }));
   }
 
   function engineUrl(engine, text) {
@@ -110,6 +137,22 @@ const Compose = (() => {
       }));
   }
 
+  function taskRows(state, text) {
+    const needle = Norm.normalize(text);
+    const open = state.tasks.filter(t => !t.done);
+    const done = state.tasks.filter(t => t.done).sort((a, b) => (b.doneAt || 0) - (a.doneAt || 0));
+    const rows = [...open, ...done]
+      .filter(t => !needle || Norm.normalize(t.text).includes(needle))
+      .map(t => ({ key: 'task:' + t.id, id: t.id, kind: 'task', label: t.text, sub: t.done ? I18n.t('task_done') : '', done: !!t.done, transient: true }));
+    if (text) rows.unshift({ key: 'task-add', kind: 'task-add', label: text, sub: I18n.t('task_add'), payload: text, transient: true });
+    return rows;
+  }
+
+  function timerRow(spec) {
+    const sub = spec.label || (spec.focus ? I18n.t('timer_focus') : I18n.t('timer_start'));
+    return { key: 'timer', kind: 'timer', label: Timers.format(spec.seconds), sub, payload: { seconds: spec.seconds, label: spec.label || (spec.focus ? I18n.t('timer_focus') : '') }, transient: true };
+  }
+
   let rtf = null;
   let rtfLang = '';
 
@@ -138,16 +181,21 @@ const Compose = (() => {
       case 'calc': { const r = calcRow(text); if (r) rows.push(r); break; }
       case 'web': if (text) rows.push(webRow(parsed.engine, text)); break;
       case 'clip': rows.push(...clipRows(state, text).slice(0, limit * 4)); break;
+      case 'task': rows.push(...taskRows(state, text).slice(0, limit * 4)); break;
       case 'person': case 'snippet': case 'command':
         rows.push(...Engine.search(text, limit, new Set([parsed.scope])).map(h => h.item));
         break;
       default: {
         if (!text) {
-          rows.push(...Engine.search('', limit).map(h => h.item));
+          rows.push(...homeItems(8));
           break;
         }
+        const timer = Timers.parse(text);
+        if (timer) rows.push(timerRow(timer));
+        const color = Color.parse(text);
+        if (color) rows.push(...colorRows(color));
         const rec = recognize(text);
-        const calc = !rec && Calc.looksLikeMath(text) ? calcRow(text) : null;
+        const calc = !rec && !timer && !color && Calc.looksLikeMath(text) ? calcRow(text) : null;
         const hits = Engine.search(text, limit);
         const exactAlias = hits.length && Engine.tierOf(hits[0].raw) >= Engine.Tier.ALIAS_EXACT;
         if (calc && !exactAlias) rows.push(calc);

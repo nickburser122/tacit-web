@@ -104,6 +104,7 @@ const Panel = (() => {
     else if (current === 'data') inner.append(...dataView());
     else if (current === 'keys') inner.append(UI.keysNode());
     body.replaceChildren(inner);
+    if (!root.hidden && !root.contains(document.activeElement)) tabsNode.querySelector('[aria-selected="true"]')?.focus({ preventScroll: true });
   }
 
   function sharedAliases() {
@@ -376,9 +377,9 @@ const Panel = (() => {
       sec.append(el('div', { class: 'setting' }, el('label', { for: i, text: t(label) }), inp));
     };
 
-    const text = (sec, label, getter, setter, width) => {
+    const text = (sec, label, getter, setter, width, dir) => {
       const i = id();
-      const inp = el('input', { type: 'text', id: i, dir: 'ltr', spellcheck: 'false' });
+      const inp = el('input', { type: 'text', id: i, dir: dir || 'ltr', spellcheck: 'false' });
       inp.value = getter();
       if (width) inp.style.maxWidth = width;
       inp.addEventListener('input', () => { setter(inp.value); Store.changed(); });
@@ -387,10 +388,14 @@ const Panel = (() => {
 
     const look = section('set_look');
     select(look, 'set_theme', 'theme', [['system', t('theme_system')], ['dark', t('theme_dark')], ['light', t('theme_light')]]);
+    select(look, 'set_accent', 'accent', ['ember', 'hour', 'sage', 'azure', 'rose', 'graphite'].map(k => [k, t('accent_' + k)]));
     select(look, 'set_lang', 'lang', [['auto', t('lang_auto')], ['en', 'English'], ['ar', 'العربية']]);
     toggle(look, 'set_bar_bottom', 'barBottom');
     toggle(look, 'set_clock', 'clock');
     toggle(look, 'set_date', 'date');
+    toggle(look, 'set_greeting', 'greeting');
+    text(look, 'set_name', () => s.name, v => { s.name = v; }, '180px', 'auto');
+    toggle(look, 'set_home_tasks', 'homeTasks');
     number(look, 'set_results', 'results', 3, 30);
 
     const search = section('set_search');
@@ -414,6 +419,10 @@ const Panel = (() => {
     toggle(actions, 'set_newtab', 'newTab');
     toggle(actions, 'set_clear', 'clearAfter');
     text(actions, 'set_country', () => s.countryCode, v => { s.countryCode = v.replace(/\D/g, ''); }, '90px');
+
+    const timers = section('set_timers');
+    toggle(timers, 'set_timer_sound', 'timerSound');
+    toggle(timers, 'set_timer_notify', 'timerNotify');
 
     const clip = section('set_clip');
     toggle(clip, 'set_clip_on', 'clipEnabled');
@@ -443,7 +452,7 @@ const Panel = (() => {
     select(clip, 'set_sensitive', 'sensitivePolicy', [['skip', t('sens_skip')], ['expire', t('sens_expire')], ['hide', t('sens_hide')]]);
 
     const prefixes = section('set_prefixes');
-    for (const [key, label] of [['calc', 'p_calc'], ['clip', 'p_clip'], ['people', 'p_people'], ['snippets', 'p_snippets'], ['commands', 'p_commands']]) {
+    for (const [key, label] of [['calc', 'p_calc'], ['tasks', 'p_tasks'], ['clip', 'p_clip'], ['people', 'p_people'], ['snippets', 'p_snippets'], ['commands', 'p_commands']]) {
       text(prefixes, label, () => s.prefixes[key], v => { s.prefixes[key] = v; }, '90px');
     }
     return wrap;
