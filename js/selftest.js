@@ -230,7 +230,173 @@
     Store.changed = realChanged;
   }
 
-  clipboardChecks().then(() => {
+
+  async function moreChecks() {
+    const eq = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+    const st = Store.fresh();
+    const eng = prefix => st.engines.find(e => e.prefix === prefix);
+
+    check('links safe https', Links.safe('https://a.com') && Links.safe('tel:+20100') && Links.safe('obsidian://open?x=1'), null);
+    check('links unsafe schemes', ['javascript:alert(1)', ' JaVaScRiPt:x', 'java\tscript:x', 'data:text/html,x', 'vbscript:x', 'blob:abc', '', null].every(u => !Links.safe(u)), null);
+    check('links clean strips trackers', eq(Links.clean('https://e.com/a?utm_source=x&id=5&fbclid=1'), { url: 'https://e.com/a?id=5', removed: 2 }), Links.clean('https://e.com/a?utm_source=x&id=5&fbclid=1'));
+    check('links clean drops empty query', Links.clean('https://e.com/?utm_x=1').url === 'https://e.com/', Links.clean('https://e.com/?utm_x=1'));
+    check('links clean youtube si only', Links.clean('https://youtu.be/abc?si=z&t=5').url === 'https://youtu.be/abc?t=5' && Links.clean('https://e.com/?si=1').removed === 0, Links.clean('https://youtu.be/abc?si=z&t=5'));
+    check('links clean ignores non urls', Links.clean('hello').removed === 0 && Links.clean('mailto:a@b.c').removed === 0, null);
+    check('links normalize host', Links.normalizeHost('lingva.ml/') === 'https://lingva.ml' && Links.normalizeHost('http://x.org/p/') === 'http://x.org/p' && Links.normalizeHost('javascript:x') === '' && Links.normalizeHost('') === '', null);
+
+    check('provider percent plus', Providers.build(eng('ddg'), 'a b&c') === 'https://duckduckgo.com/?q=a+b%26c', Providers.build(eng('ddg'), 'a b&c'));
+    check('provider translate path', Providers.build(eng('tr'), 'good morning') === 'https://lingva.ml/auto/ar/good%20morning', Providers.build(eng('tr'), 'good morning'));
+    check('provider translate arabic to en', Providers.build(eng('tr'), 'صباح').startsWith('https://lingva.ml/auto/en/'), Providers.build(eng('tr'), 'صباح'));
+    check('provider translate forced target', Providers.build(eng('tr'), 'hello', { to: 'fr' }) === 'https://lingva.ml/auto/fr/hello', Providers.build(eng('tr'), 'hello', { to: 'fr' }));
+    check('provider translate settings', Providers.build(eng('tr'), 'hello', { state: { settings: { translateOtherTo: 'de', translateArabicTo: 'en' } } }) === 'https://lingva.ml/auto/de/hello', null);
+    check('provider placeholders not reexpanded', Providers.build({ url: '{host}/{q}', host: 'https://h.io', hostDefault: 'https://h.io' }, '{to}') === 'https://h.io/%7Bto%7D', Providers.build({ url: '{host}/{q}', host: 'https://h.io', hostDefault: 'https://h.io' }, '{to}'));
+    check('provider wiki language', Providers.build(eng('w'), 'مصر').startsWith('https://ar.wikipedia.org/') && Providers.build(eng('w'), 'egypt').startsWith('https://en.wikipedia.org/'), null);
+    check('provider host override', Providers.build({ ...eng('r'), host: 'https://redlib.example/' }, 'cats') === 'https://redlib.example/search?q=cats', Providers.build({ ...eng('r'), host: 'https://redlib.example/' }, 'cats'));
+    check('provider blank host falls to default', Providers.build({ ...eng('yt'), host: '' }, 'x') === 'https://www.youtube.com/results?search_query=x', null);
+    check('provider unusable without host', !Providers.usable(eng('sx')) && Providers.usable(eng('tr')) && Providers.usable({ ...eng('sx'), host: 'https://s.example' }), null);
+    check('provider home', Providers.home(eng('gh')) === 'https://github.com' && Providers.home(eng('r')) === 'https://www.reddit.com', null);
+
+    const scoped = q => Providers.parseScoped(q, st);
+    check('scoped target tr>fr', scoped('tr>fr bonjour')?.to === 'fr' && scoped('tr>fr bonjour')?.text === 'bonjour' && scoped('tr>fr bonjour')?.engine.prefix === 'tr', scoped('tr>fr bonjour'));
+    check('scoped target colon and empty text', scoped('tr:ar-eg')?.to === 'ar-eg' && scoped('tr>fr')?.text === '', scoped('tr:ar-eg'));
+    check('scoped plain prefix', scoped('g cats')?.engine.prefix === 'g' && scoped('g cats')?.text === 'cats' && scoped('tr hello')?.to === undefined, scoped('g cats'));
+    check('scoped rejects lookalikes', scoped('trx') === null && scoped('gh') === null && scoped('g>fr x') === null, null);
+    check('scoped skips unusable', scoped('sx cats') === null, scoped('sx cats'));
+
+    const jump = q => Providers.direct(q, st).map(r => r.payload);
+    check('direct repo', eq(jump('microsoft/vscode'), ['https://github.com/microsoft/vscode']), jump('microsoft/vscode'));
+    check('direct reddit', eq(jump('r/privacy'), ['https://www.reddit.com/r/privacy']) && eq(jump('/u/spez'), ['https://www.reddit.com/u/spez']), [jump('r/privacy'), jump('/u/spez')]);
+    check('direct ignores noise', ['1/2', 'example.org/page', 'a b/c', 'km', 'a/'].every(q => jump(q).length === 0), null);
+
+    const names = q => Providers.rank(q, st).map(e => e.prefix);
+    check('rank default first', names('hello world')[0] === 'ddg', names('hello world'));
+    check('rank word surfaces dictionary', names('hello').indexOf('d') < names('hello').indexOf('g') && names('hello').indexOf('d') <= 2, names('hello'));
+    check('rank arabic word', names('مرحبا').slice(0, 3).includes('d') && names('مرحبا').slice(0, 3).includes('tr'), names('مرحبا'));
+    check('rank repo and reddit', names('microsoft/vscode').slice(0, 2).includes('gh') && names('r/privacy').slice(0, 2).includes('r'), [names('microsoft/vscode'), names('r/privacy')]);
+    check('rank hides unusable', !names('x').includes('sx'), names('x'));
+
+    const legacy = [
+      { id: 'a', prefix: 'w', name: 'Wikipedia', url: 'https://en.wikipedia.org/w/index.php?search=%s', aliases: [] },
+      { id: 'b', prefix: 'yt', name: 'YouTube', url: 'https://www.youtube.com/results?search_query=%s', aliases: [] },
+      { id: 'c', prefix: 'w2', name: 'My wiki', url: 'https://wiki.me/?s=%s', aliases: [] }
+    ];
+    const migrated = Providers.migrate(legacy, () => 'n' + Math.random());
+    check('migrate upgrades defaults', migrated.find(e => e.id === 'a').url.includes('{lang}') && migrated.find(e => e.id === 'b').hostDefault === 'https://www.youtube.com', migrated.slice(0, 2));
+    check('migrate keeps custom', migrated.find(e => e.id === 'c').url === 'https://wiki.me/?s=%s' && migrated.find(e => e.id === 'c').cat === 'web', migrated.find(e => e.id === 'c'));
+    check('migrate adds missing defaults once', migrated.length === 15 + 1 && new Set(migrated.map(e => e.prefix)).size === migrated.length, migrated.map(e => e.prefix));
+
+    const merged = Store.merge({
+      version: 1,
+      links: [{ id: 'x', name: 'bad', url: 'javascript:alert(1)' }, { id: 'y', name: 'ok', url: 'https://ok.com' }, { id: 'z', name: 'blank', url: '' }],
+      engines: legacy.concat([{ id: 'd', prefix: 'evil', name: 'Evil', url: 'javascript:alert({q})' }]),
+      settings: { kindOrder: ['link', 'person', 'web'] }
+    });
+    check('merge drops unsafe links keeps blank', eq(merged.links.map(l => l.id), ['y', 'z']), merged.links);
+    check('merge drops unsafe engines', !merged.engines.some(e => e.prefix === 'evil'), merged.engines.map(e => e.prefix));
+    check('merge migrates and versions', merged.version === 2 && merged.engines.length === 16 && Array.isArray(merged.sets) && Array.isArray(merged.notes), merged.version);
+    check('merge fills kind order', merged.settings.kindOrder.includes('set') && merged.settings.kindOrder.indexOf('set') < merged.settings.kindOrder.indexOf('web') && merged.settings.kindOrder.includes('clip'), merged.settings.kindOrder);
+    check('merge sanitizes sets', eq(Store.merge({ sets: [{ id: 's', name: 'n', urls: ['https://a.com', 'javascript:x'] }] }).sets[0].urls, ['https://a.com']), null);
+    check('merge version 2 not remigrated', Store.merge({ version: 2, engines: [legacy[2]] }).engines.length === 1, null);
+
+    const hex = text => Tools.sha256(Tools.utf8(text));
+    check('sha256 empty', hex('') === 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855', hex(''));
+    check('sha256 abc', hex('abc') === 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad', hex('abc'));
+    check('sha256 two blocks', hex('abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq') === '248d6a61d20638b8e5c026930c3e6039a33ce45964ff2167f6ecedd419db06c1', hex('abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq'));
+    check('sha256 unicode', hex('مرحبا').length === 64 && hex('مرحبا') !== hex('مرحبى'), null);
+    check('base64 known', Tools.toBase64('hello') === 'aGVsbG8=', Tools.toBase64('hello'));
+    check('base64 round trip', ['مرحبا بالعالم', 'a', 'ab', 'abc', '😀 x', 'x'.repeat(70000)].every(t => Tools.fromBase64(Tools.toBase64(t)) === t), null);
+    check('base64 url safe and bad input', Tools.fromBase64('aGk_') !== undefined && Tools.fromBase64('!!!') === null && Tools.fromBase64('/w==') === null, null);
+    check('layout swap both ways', Tools.swapLayout('hgsghl') === 'السلام' && Tools.swapLayout('السلام') === 'hgsghl' && Tools.swapLayout('hgsghl ugd;l') === 'السلام عليكم', [Tools.swapLayout('hgsghl'), Tools.swapLayout('hgsghl ugd;l')]);
+    check('digits both ways', Tools.toLatinDigits('٠١٢٣٤٥٦٧٨٩ ۰۱۲') === '0123456789 012' && Tools.toArabicDigits('2026-10') === '٢٠٢٦-١٠', null);
+    check('slug', Tools.slug('  Hello, Wörld! 2026 ') === 'hello-world-2026' && Tools.slug('مرحبا بالعالم') === 'مرحبا-بالعالم', [Tools.slug('  Hello, Wörld! 2026 '), Tools.slug('مرحبا بالعالم')]);
+
+    const tool = q => Tools.parse(q).map(r => r.label);
+    check('tool parse b64 url upper', tool('b64 hello')[0] === 'aGVsbG8=' && tool('url a b&c')[0] === 'a%20b%26c' && tool('upper abc')[0] === 'ABC' && tool('unb64 aGVsbG8=')[0] === 'hello', [tool('b64 hello'), tool('url a b&c')]);
+    check('tool parse quiet when no change', tool('url shortener').length === 0 && tool('upper ABC').length === 0 && tool('unb64 !!!').length === 0 && tool('hello world').length === 0 && tool('b64').length === 0, null);
+    check('tool json', tool('json {"a":[1,2]}').length === 2 && Tools.parse('json {bad')[0].payload === '' && Tools.parse('json 5').length === 0, tool('json {"a":[1,2]}'));
+    check('tool count', Tools.parse('count one two three')[0].label === '3 words', Tools.parse('count one two three'));
+    check('tool aliases', tool('base64 hi')[0] === 'aGk=' && tool('sha abc')[0].startsWith('ba7816bf') && tool('layout hgsghl')[0] === 'السلام', null);
+
+    if (Tools.hijriSupported()) {
+      const iso = d => d.toISOString().slice(0, 10);
+      check('hijri known conversion', iso(Tools.gregorianOfHijri(1448, 5, 1)) === '2026-10-12' && (h => h.year === 1448 && h.month === 5 && h.day === 1)(Tools.hijriOf(new Date(Date.UTC(2026, 9, 12, 12)))), Tools.hijriOf(new Date(Date.UTC(2026, 9, 12, 12))));
+      let ok = true;
+      for (let i = 0; i < 120; i++) {
+        const d = new Date(Date.UTC(2000, 0, 1, 12) + i * 311 * 86400000);
+        const h = Tools.hijriOf(d);
+        const back = Tools.gregorianOfHijri(h.year, h.month, h.day);
+        if (!back || iso(back) !== iso(d)) ok = false;
+      }
+      check('hijri round trip', ok, null);
+      check('hijri invalid day', Tools.gregorianOfHijri(1448, 2, 31) === null && Tools.gregorianOfHijri(1448, 13, 1) === null, null);
+      check('hijri tool rows', Tools.parse('hijri').length === 1 && Tools.parse('hijri 1448-05-01')[0].payload === '2026-10-12' && Tools.parse('hijri 2026-10-12')[0].kind === 'tool' && Tools.parse('hijri 12/10/2026').length === 1 && Tools.parse('hijri nonsense').length === 0, Tools.parse('hijri 1448-05-01'));
+    }
+
+    const fresh = Store.fresh();
+    fresh.notes.push({ id: 'n1', text: 'call the plumber', time: Date.now() - 60000 }, { id: 'n2', text: 'buy milk', time: Date.now() });
+    check('parse note scope', Compose.parse('note buy', fresh).scope === 'note' && Compose.parse('notes', fresh).scope === 'all' && Compose.parse('note ', fresh).scope === 'note', Compose.parse('notes', fresh));
+    const noteRows = Compose.compose('note milk', fresh).rows;
+    check('compose note add then match', eq(noteRows.map(r => r.kind), ['note-add', 'note']) && noteRows[1].id === 'n2', noteRows);
+    check('compose note list newest first', eq(Compose.compose('note ', fresh).rows.map(r => r.id), ['n2', 'n1']), Compose.compose('note ', fresh).rows);
+
+    fresh.sets.push({ id: 's1', name: 'Morning', urls: ['https://a.com', 'https://b.com'], aliases: ['am'] });
+    fresh.links.push({ id: 'bad', name: 'Evil', url: 'javascript:alert(1)', aliases: [] });
+    const built = Compose.buildItems(fresh);
+    check('items include set', built.some(i => i.kind === 'set' && i.sub === '2 links' && i.payload.length === 2), built.filter(i => i.kind === 'set'));
+    check('items skip unsafe link', !built.some(i => i.label === 'Evil'), null);
+    check('items hide unusable engine', !built.some(i => i.isEngine && i.label === 'SearXNG') && built.some(i => i.isEngine && i.label === 'Reddit'), null);
+
+    Engine.setItems(built);
+    const hello = Compose.compose('hello', fresh);
+    check('compose chips and active', hello.chips.length >= 8 && hello.active.prefix === 'ddg' && hello.rows[hello.rows.length - 1].engineId === hello.active.id, hello.chips.map(c => c.prefix));
+    const other = hello.chips[2];
+    const forced = Compose.compose('hello', fresh, { engineId: other.id });
+    check('compose engine override', forced.rows[forced.rows.length - 1].engineId === other.id && forced.active.id === other.id, forced.active);
+    check('compose scoped keeps chips', Compose.compose('g cats', fresh).chips.length >= 8 && Compose.compose('g cats', fresh).active.prefix === 'g', null);
+    check('compose no chips for tasks and home', Compose.compose('+ x', fresh).chips.length === 0 && Compose.compose('', fresh).chips.length === 0, null);
+    const trRow = Compose.compose('tr>fr bonjour', fresh).rows[0];
+    check('compose translate row', trRow.sub === 'Translate → fr' && trRow.payload === 'https://lingva.ml/auto/fr/bonjour', trRow);
+    const emptyScope = Compose.compose('g ', fresh).rows;
+    check('compose empty scope row', emptyScope.length === 1 && emptyScope[0].payload === 'https://www.google.com' && emptyScope[0].sub === 'Type to search', emptyScope);
+    const dirty = Compose.compose('https://e.com/?utm_source=a&x=1', fresh).rows.find(r => r.key === 'url');
+    check('compose url cleaned', dirty.payload === 'https://e.com/?x=1' && /tracking/.test(dirty.sub), dirty);
+    fresh.settings.stripTrackers = false;
+    check('compose url untouched when disabled', Compose.compose('https://e.com/?utm_source=a', fresh).rows.find(r => r.key === 'url').payload === 'https://e.com/?utm_source=a', null);
+    const repo = Compose.compose('microsoft/vscode', fresh).rows.map(r => r.payload);
+    check('compose repo jump before web', repo[0] === 'https://github.com/microsoft/vscode', repo);
+    check('compose tool rows before web', Compose.compose('b64 hi', fresh).rows[0].kind === 'tool', Compose.compose('b64 hi', fresh).rows[0]);
+    check('compose math still first', Compose.compose('2+2', fresh).rows[0].kind === 'calc', null);
+
+    check('engine url legacy encoding', Compose.engineUrl({ url: 'https://d.com/?q=%s' }, 'a b&c') === 'https://d.com/?q=a+b%26c', null);
+
+    if (Backup.supported()) {
+      const box = JSON.parse(await Backup.encrypt('{"hello":"عالم"}', 'correct horse'));
+      check('backup shape', Backup.isEncrypted(box) && box.enc === 'aes-256-gcm' && box.iter >= 100000 && !JSON.stringify(box).includes('hello'), box);
+      check('backup round trip', (await Backup.decrypt(box, 'correct horse')) === '{"hello":"عالم"}', null);
+      check('backup wrong passphrase', (await Backup.decrypt(box, 'wrong horse')) === null, null);
+      const tampered = { ...box, data: box.data.slice(0, -4) + 'AAAA' };
+      check('backup tamper detected', (await Backup.decrypt(tampered, 'correct horse')) === null, null);
+      check('backup rejects garbage', (await Backup.decrypt({ iter: 1, salt: '!', iv: '!', data: '!' }, 'x')) === null && !Backup.isEncrypted({ a: 1 }) && !Backup.isEncrypted(null), null);
+    }
+
+    try {
+      const page = await (await fetch('index.html')).text();
+      const worker = await (await fetch('sw.js')).text();
+      const assets = [...page.matchAll(/(?:src|href)="((?:js|css|fonts)\/[^"]+)"/g)].map(m => m[1]);
+      const missing = assets.filter(a => !worker.includes("'" + a + "'"));
+      check('service worker caches every asset', assets.length > 20 && missing.length === 0, missing);
+      check('csp forbids inline script', /script-src 'self'(?:;|")/.test(page) && !/<script>[^<]/.test(page) && !/ on[a-z]+="/.test(page), null);
+      check('referrer policy set', /name="referrer" content="no-referrer"/.test(page), null);
+      const loaded = [...page.matchAll(/<script src="(js\/[^"]+)"/g)].map(m => m[1]);
+      const testPage = await (await fetch('selftest.html')).text();
+      const missingInTest = loaded.filter(s => !['js/ui.js', 'js/panel.js', 'js/app.js', 'js/start.js', 'js/boot.js'].includes(s) && !testPage.includes('"' + s + '"'));
+      check('selftest loads the same modules', missingInTest.length === 0, missingInTest);
+    } catch (e) {
+      check('asset checks reachable', false, String(e));
+    }
+  }
+
+  clipboardChecks().then(moreChecks).then(() => {
     const fails = results.filter(r => r.startsWith('FAIL'));
     document.getElementById('out').textContent = `${results.length - fails.length}/${results.length} passed\n\n` + results.join('\n');
     console.log(`SELFTEST ${results.length - fails.length}/${results.length} passed`);

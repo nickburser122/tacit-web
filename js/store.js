@@ -3,14 +3,7 @@ const Store = (() => {
   const USAGE_TTL = 90 * 86400000;
   const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
 
-  const defaultEngines = () => [
-    { id: uid(), prefix: 'ddg', name: 'DuckDuckGo', url: 'https://duckduckgo.com/?q=%s', aliases: [] },
-    { id: uid(), prefix: 'g', name: 'Google', url: 'https://www.google.com/search?q=%s', aliases: [] },
-    { id: uid(), prefix: 'w', name: 'Wikipedia', url: 'https://en.wikipedia.org/w/index.php?search=%s', aliases: [] },
-    { id: uid(), prefix: 'yt', name: 'YouTube', url: 'https://www.youtube.com/results?search_query=%s', aliases: [] },
-    { id: uid(), prefix: 'map', name: 'OpenStreetMap', url: 'https://www.openstreetmap.org/search?query=%s', aliases: [] },
-    { id: uid(), prefix: 'gh', name: 'GitHub', url: 'https://github.com/search?q=%s', aliases: [] }
-  ];
+  const defaultEngines = () => Providers.defaults().map(d => ({ id: uid(), aliases: [], ...d }));
 
   const defaultLinks = () => [
     ['Gmail', 'https://mail.google.com', 'mail, email'],
@@ -18,8 +11,8 @@ const Store = (() => {
     ['WhatsApp Web', 'https://web.whatsapp.com', 'wa'],
     ['Google Calendar', 'https://calendar.google.com', 'cal'],
     ['Google Drive', 'https://drive.google.com', 'drive'],
-    ['Google Maps', 'https://maps.google.com', 'maps'],
-    ['Google Translate', 'https://translate.google.com', 'translate, ترجمة'],
+    ['OpenStreetMap', 'https://www.openstreetmap.org', 'maps, map, خرائط'],
+    ['Lingva Translate', 'https://lingva.ml', 'translate, ترجمة'],
     ['Wikipedia', 'https://www.wikipedia.org', 'wiki'],
     ['GitHub', 'https://github.com', ''],
     ['F-Droid', 'https://f-droid.org', '']
@@ -45,6 +38,10 @@ const Store = (() => {
     learn: true,
     newTab: false,
     defaultEngine: 'ddg',
+    translateArabicTo: 'en',
+    translateOtherTo: 'ar',
+    stripTrackers: true,
+    hijri: false,
     countryCode: '',
     clearAfter: true,
     clipEnabled: true,
@@ -55,8 +52,8 @@ const Store = (() => {
     timerSound: true,
     timerNotify: true,
     sensitivePolicy: 'skip',
-    kindOrder: ['link', 'person', 'snippet', 'command', 'action', 'calc', 'web', 'clip'],
-    prefixes: { calc: '=', clip: 'cb ', people: '@', snippets: ';', commands: '>', tasks: '+' }
+    kindOrder: ['link', 'set', 'person', 'snippet', 'command', 'action', 'calc', 'web', 'clip'],
+    prefixes: { calc: '=', clip: 'cb ', people: '@', snippets: ';', commands: '>', tasks: '+', notes: 'note ' }
   });
 
   function splitList(text) {
@@ -65,11 +62,13 @@ const Store = (() => {
 
   function fresh() {
     return {
-      version: 1,
+      version: 2,
       settings: defaultSettings(),
       links: defaultLinks(),
       people: [],
       snippets: [],
+      sets: [],
+      notes: [],
       engines: defaultEngines(),
       commandAliases: {},
       pins: [],
@@ -89,15 +88,33 @@ const Store = (() => {
     return out;
   }
 
+  function cleanKindOrder(order, base) {
+    const list = Array.isArray(order) ? order.filter(k => typeof k === 'string') : [];
+    for (const k of base) {
+      if (list.includes(k)) continue;
+      const at = list.indexOf('web');
+      if (at < 0) list.push(k);
+      else list.splice(at, 0, k);
+    }
+    return list;
+  }
+
   function merge(data) {
     const base = fresh();
     if (!data || typeof data !== 'object') return base;
     const out = { ...base, ...data };
     out.settings = { ...base.settings, ...(data.settings || {}) };
     out.settings.prefixes = { ...base.settings.prefixes, ...((data.settings || {}).prefixes || {}) };
-    for (const k of ['links', 'people', 'snippets', 'engines', 'clips', 'pins', 'tasks', 'timers']) if (!Array.isArray(out[k])) out[k] = base[k];
+    out.settings.kindOrder = cleanKindOrder(out.settings.kindOrder, base.settings.kindOrder);
+    for (const k of ['links', 'people', 'snippets', 'sets', 'notes', 'engines', 'clips', 'pins', 'tasks', 'timers']) if (!Array.isArray(out[k])) out[k] = base[k];
     if (!out.commandAliases || typeof out.commandAliases !== 'object') out.commandAliases = {};
     out.usage = cleanUsage(data.usage);
+    out.links = out.links.filter(l => l && (!l.url || Links.safe(l.url)));
+    out.sets = out.sets.filter(s => s && Array.isArray(s.urls)).map(s => ({ ...s, urls: s.urls.filter(u => Links.safe(u)) }));
+    out.engines = out.engines.filter(e => e && typeof e.url === 'string' && (!e.url || Links.safe(e.url.replace(/\{[a-z]+\}/g, 'https://x'))));
+    if ((data.version || 1) < 2) out.engines = Providers.migrate(out.engines, uid);
+    for (const e of out.engines) if (!e.cat) e.cat = 'web';
+    out.version = 2;
     return out;
   }
 
@@ -187,7 +204,7 @@ const Store = (() => {
 
   return {
     get state() { return state; },
-    uid, splitList, changed, replace, reset, fresh, touch, pruneUsage, resetUsage, flush,
+    uid, splitList, changed, replace, reset, fresh, merge, touch, pruneUsage, resetUsage, flush,
     onChange: fn => listeners.add(fn)
   };
 })();

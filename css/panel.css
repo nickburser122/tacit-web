@@ -343,3 +343,5 @@ table.grid {
 @media (max-width: 520px) {
   .panel-head, .panel-tabs, .panel-body { padding-inline: 10px; }
 }
+
+.grid td input.conflict, .grid td textarea.conflict { border-color: var(--accent); }

@@ -1,4 +1,4 @@
-const CACHE = 'tacit-v5';
+const CACHE = 'tacit-v6';
 const PAGE = new URL('index.html', self.registration.scope).href;
 const ASSETS = [
   './', 'index.html', 'manifest.webmanifest',
@@ -6,8 +6,8 @@ const ASSETS = [
   'icons/apple-touch-icon.png', 'icons/favicon.ico', 'icons/favicon-32.png',
   'fonts/readex-latin.woff2', 'fonts/readex-arabic.woff2',
   'css/tacit.css', 'css/panel.css',
-  'js/boot.js', 'js/normalize.js', 'js/engine.js', 'js/calc.js', 'js/sensitive.js', 'js/store.js', 'js/i18n.js', 'js/clipaccess.js',
-  'js/color.js', 'js/sky.js', 'js/timers.js', 'js/compose.js', 'js/importers.js', 'js/ui.js', 'js/panel.js', 'js/app.js'
+  'js/boot.js', 'js/normalize.js', 'js/links.js', 'js/providers.js', 'js/engine.js', 'js/calc.js', 'js/sensitive.js', 'js/store.js', 'js/i18n.js', 'js/clipaccess.js',
+  'js/color.js', 'js/sky.js', 'js/timers.js', 'js/tools.js', 'js/compose.js', 'js/importers.js', 'js/backup.js', 'js/ui.js', 'js/panel.js', 'js/app.js', 'js/start.js'
 ];
 
 self.addEventListener('install', event => {

@@ -2,7 +2,7 @@
 
 A quiet start page for the web. One line opens any link or contact, answers small questions, and keeps the little things you would otherwise lose. Keyboard first, installable, offline, English and Arabic.
 
-Charcoal by night, bone by day, with one ember accent. The sun/moon button in the corner flips the theme in a tap, and `Alt + T` does the same from the keyboard. A faint glow crosses the top of the page with the real hour of the day.
+Charcoal by night, bone by day, with one ember accent. The sun/moon button in the corner flips the theme in a tap, and `Alt + T` does the same from the keyboard. A faint glow crosses the top of the page with the real hour of the day. The search bar never moves: the clock fades out above it while you type, and the results open below.
 
 ## What you can type
 
@@ -11,14 +11,46 @@ Charcoal by night, bone by day, with one ember accent. The sun/moon button in th
 | `gmail`, `maps`, a contact name | Open it (typo tolerant, Arabic and Latin both match) |
 | `5 km in miles`, `15% of 340`, `255 in hex` | Calculator and unit converter |
 | `time in tokyo`, `5pm dubai in tokyo`, `days until christmas` | Time zones and dates |
+| `hijri`, `hijri 2026-10-12`, `hijri 1448-05-01` | Today's Hijri date, or convert either way (Umm al-Qura) |
 | `+ call the bank` | Add a task. `+` alone lists tasks |
+| `note call the plumber` | Jot a note. `note ` alone lists them. Turn one into a task, snippet or link from its menu |
 | `25m timer tea`, `remind me in 5 minutes to call mom`, `pomodoro` | Start a timer. The tab title counts down and a chime plays |
 | `#3b82a0`, `rgb(59 130 160)`, `hsl(198 46% 43%)` | Colour converter |
 | `>uuid`, `>password`, `>timestamp` | Copy a UUID, a strong password or the Unix time |
 | `@name`, `;snippet`, `cb text` | People, snippets, clipboard history |
-| `g cats`, `yt lofi`, `w tacit` | Search with an engine prefix |
+| `b64 hello`, `unb64 aGVsbG8=`, `url a b`, `sha256 text`, `json {...}`, `slug`, `upper`, `lower`, `count`, `digits ١٢٣` | Text tools. Enter copies the result |
+| `fix hgsghl` | Retype text typed on the wrong keyboard layout (Latin ↔ Arabic) |
+| `owner/repo`, `r/privacy`, `u/name` | Jump straight to a GitHub repository, subreddit or Reddit user |
+| `https://site.com/?utm_source=x` | Opens with tracking parameters removed |
+| `morning` (a launch set) | Opens every link in the set at once |
+| `g cats`, `b cats`, `d hello`, `tr bonjour`, `tr>fr bonjour` | Search with a provider prefix |
 
-Press `/` anywhere to focus the field, arrow keys to move between tiles, `Enter` to open, `Ctrl/Cmd + Enter` for a new tab, `Tab` for actions, `Alt + 1…9` to open a tile directly, `Ctrl/Cmd + ,` for the panel, `Alt + T` for the theme.
+Press `/` anywhere to focus the field, arrow keys to move between tiles, `Enter` to open, `Ctrl/Cmd + Enter` for a new tab, `Tab` and `Shift + Tab` to switch search provider, `Alt + Enter` (or right-click, or long-press) for actions, `Alt + 1…9` to open a tile directly, `Ctrl/Cmd + ,` for the panel, `Alt + T` for the theme.
+
+## Providers
+
+Typing a query shows a row of providers under the bar, ordered by what you typed: an Arabic word brings the dictionary and translator forward, `owner/repo` brings code search forward. Click one to search with it, or press `Tab` to step through them and `Enter` to open. A dot marks providers that respect your privacy.
+
+| Prefix | Provider | Category |
+| --- | --- | --- |
+| `ddg` (default) `b` `sp` `mj` `sx` | DuckDuckGo, Brave Search, Startpage, Mojeek, SearXNG | Web |
+| `g` | Google | Web |
+| `w` `d` | Wikipedia, Wiktionary (Arabic or English chosen from your text) | Knowledge, dictionary |
+| `tr` | Translate (Lingva), `tr>fr text` picks the target language | Translate |
+| `gh` `cg` `mdn` | GitHub, Codeberg, MDN | Code |
+| `r` | Reddit | Social |
+| `yt` | YouTube | Video |
+| `map` | OpenStreetMap | Maps |
+
+Reddit, YouTube, Translate and SearXNG are front-end addresses you can change in Settings, under Front-ends. Paste a Redlib, Piped, Invidious, Lingva or SearXNG instance, or your own, and every search and direct jump follows it. SearXNG stays hidden until you give it an address. Public front-ends come and go, so keep one you trust.
+
+The Providers tab edits the list. A template can use `%s` (query, spaces as `+`), `{q}` (query, spaces as `%20`), `{lang}` (`ar` or `en` from the text), `{from}` and `{to}` (translation), and `{host}` (the front-end address). Translation targets are set in Settings: Arabic text goes to English and other text goes to Arabic unless you say otherwise.
+
+## Sets, notes and backups
+
+A launch set is a name with several addresses. Add one from the Sets tab or the `Add launch set` command. Your browser may ask once to allow pop-ups.
+
+Backups live in the panel under Data. `Export encrypted` protects the file with a passphrase (AES-256-GCM, key derived with PBKDF2). Importing detects an encrypted file and asks for the passphrase. Encryption needs https or localhost.
 
 ## Use it as your start page
 
@@ -26,10 +58,12 @@ Press `/` anywhere to focus the field, arrow keys to move between tiles, `Enter`
 2. Set the page as your browser's home or startup page, or install it as an app from the browser menu.
 3. Optional: in the panel, open Data and copy the search address into your browser's custom search engines.
 
-Everything is stored in your browser only. Nothing is sent anywhere.
+## Privacy and safety
+
+Everything is stored in your browser only. Tacit makes no network requests of its own: the page's content security policy only allows files from its own origin, and links you open do not receive a referrer. Addresses starting with `javascript:`, `data:`, `vbscript:`, `blob:` or `file:` are refused everywhere, including in imported backups and CSV files. Tracking parameters (`utm_*`, `fbclid`, `gclid` and similar) are stripped from links you type or save, and the `Remove tracking from copied link` command cleans whatever link is on your clipboard. Both can be switched off in Settings.
 
 ## Develop
 
-No build step and no dependencies. Serve the folder with any static server and open `index.html`. Open `selftest.html` to run the self tests, which are reported in the page and the console.
+No build step and no dependencies. Serve the folder with any static server and open `index.html`. Open `selftest.html` to run the self tests, which are reported in the page and the console. When you add a script, list it in `index.html`, `selftest.html` and the asset list in `sw.js`; a self test fails if the service worker list falls out of step.
 
 Fonts are Readex Pro (SIL Open Font License, see `fonts/OFL.txt`), self hosted and split so the Arabic file only loads when Arabic text appears.

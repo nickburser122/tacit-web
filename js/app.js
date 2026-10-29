@@ -11,6 +11,7 @@ const App = (() => {
   const clockBlock = $('clock-block');
   const timeEl = $('clock-time');
   const dateEl = $('clock-date');
+  const enginesEl = $('engines');
   const themeButton = $('theme-button');
   const themeMetas = document.querySelectorAll('meta[name="theme-color"]');
   const THEME_COLORS = { dark: '#131211', light: '#ebe9e4' };
@@ -27,6 +28,10 @@ const App = (() => {
   let lastAutoRead = 0;
   let clockSig = '';
   let hintIndex = 0;
+  let engineId = null;
+  let chips = [];
+  let active = null;
+  let chipSig = '';
 
   const S = () => Store.state.settings;
   const isHome = () => !input.value.trim();
@@ -63,6 +68,7 @@ const App = (() => {
     $('panel-button').setAttribute('aria-label', I18n.t('panel'));
     themeButton.setAttribute('aria-label', I18n.t('cmd_theme'));
     themeButton.title = I18n.t('cmd_theme');
+    enginesEl.setAttribute('aria-label', I18n.t('search_with'));
     clockBlock.hidden = !s.clock && !s.date;
     timeEl.hidden = !s.clock;
     dateEl.hidden = !s.date;
@@ -72,7 +78,7 @@ const App = (() => {
       strictness: s.strictness, transliterate: s.transliterate, kindOrder: s.kindOrder,
       usage: s.learn ? Store.state.usage : {}
     });
-    const sig = [I18n.lang, s.clock, s.date, s.greeting, s.name, s.accent].join('|');
+    const sig = [I18n.lang, s.clock, s.date, s.greeting, s.name, s.accent, s.hijri].join('|');
     tick(sig !== clockSig);
     clockSig = sig;
   }
@@ -113,7 +119,8 @@ const App = (() => {
         return document.createTextNode(part.value);
       });
       timeEl.replaceChildren(...nodes);
-      dateEl.textContent = dateFmt.format(now);
+      const hijri = S().hijri ? Tools.hijriLong(now, false) : '';
+      dateEl.textContent = dateFmt.format(now) + (hijri ? ' · ' + hijri : '');
     }
   }
 
@@ -121,6 +128,52 @@ const App = (() => {
     hint.textContent = text;
     clearTimeout(hintTimer);
     hintTimer = setTimeout(() => { hint.textContent = ''; }, ms || 1400);
+  }
+
+  function announce(text, label, action) {
+    clearTimeout(hintTimer);
+    hint.replaceChildren(document.createTextNode(text + ' '), UI.el('button', { type: 'button', class: 'hint-action', text: label, onclick: action }));
+  }
+
+  function renderChips() {
+    const show = chips.length > 0 && !isHome();
+    const sig = show ? chips.map(e => e.id).join() + '|' + (active ? active.id : '') : '';
+    if (sig === chipSig) return;
+    chipSig = sig;
+    enginesEl.hidden = !show;
+    if (!show) {
+      enginesEl.replaceChildren();
+      return;
+    }
+    enginesEl.replaceChildren(...chips.map(e => UI.el('button', {
+      type: 'button', class: 'chip', 'data-id': e.id, 'aria-pressed': active && e.id === active.id ? 'true' : 'false',
+      'data-priv': e.priv ? '' : undefined, text: e.name, dir: 'auto'
+    })));
+    enginesEl.querySelector('[aria-pressed="true"]')?.scrollIntoView({ inline: 'nearest', block: 'nearest' });
+  }
+
+  function cycleEngine(dir) {
+    if (!chips.length) return false;
+    const at = Math.max(0, chips.findIndex(e => active && e.id === active.id));
+    const next = chips[(at + dir + chips.length) % chips.length];
+    const parsed = Compose.parse(input.value, Store.state);
+    if (parsed.scope === 'web') {
+      input.value = next.prefix + ' ' + parsed.text;
+      engineId = null;
+    } else engineId = next.id;
+    run();
+    const target = rows.findIndex(r => r.kind === 'web' && r.engineId === next.id);
+    if (target >= 0) selected = target;
+    updateSelection();
+    return true;
+  }
+
+  function searchWith(id, newTab) {
+    const engine = Store.state.engines.find(e => e.id === id);
+    const parsed = Compose.parse(input.value, Store.state);
+    if (!engine || !parsed.text) return;
+    Store.touch('engine:' + id);
+    openUrl(Compose.webRow(engine, parsed.text, Store.state).payload, newTab);
   }
 
   function updateTitle() {
@@ -346,13 +399,22 @@ const App = (() => {
 
   function run(keep) {
     if (stale) reindex();
-    rows = Compose.compose(input.value, Store.state).rows;
+    if (isHome()) engineId = null;
+    const composed = Compose.compose(input.value, Store.state, { engineId });
+    rows = composed.rows;
+    chips = composed.chips;
+    active = composed.active;
     selected = keep ? Math.min(selected, Math.max(0, rows.length - 1)) : 0;
     launcher.classList.toggle('searching', !isHome());
     render();
+    renderChips();
   }
 
   function openUrl(url, external) {
+    if (!Links.safe(url)) {
+      flash(I18n.t('blocked_url'), 2600);
+      return false;
+    }
     const newTab = S().newTab || external;
     if (/^(tel|sms|mailto):/i.test(url)) {
       window.location.href = url;
@@ -362,6 +424,19 @@ const App = (() => {
       window.location.href = url;
     }
     afterLeave();
+    return true;
+  }
+
+  function openSet(urls) {
+    let blocked = 0;
+    for (const url of urls) {
+      if (!Links.safe(url)) continue;
+      const w = window.open(url, '_blank');
+      if (w) w.opener = null;
+      else blocked++;
+    }
+    if (blocked) flash(I18n.t('set_popup'), 5000);
+    else afterLeave();
   }
 
   function afterLeave() {
@@ -434,24 +509,44 @@ const App = (() => {
   async function activate(item, newTab) {
     if (!item) return;
     if (!item.transient) Store.touch(item.key);
+    if (item.engineId) Store.touch('engine:' + item.engineId);
     switch (item.kind) {
       case 'link':
-        if (newTab) { window.open(item.payload, '_blank', 'noopener'); afterLeave(); }
-        else openUrl(item.payload);
+        openUrl(item.payload, newTab);
+        break;
+      case 'set':
+        openSet(item.payload);
         break;
       case 'web':
         if (item.isEngine) {
           input.value = item.engine.prefix + ' ';
+          engineId = null;
           run();
           input.focus();
           break;
         }
-        if (newTab) { window.open(item.payload, '_blank', 'noopener'); afterLeave(); }
-        else openUrl(item.payload);
+        openUrl(item.payload, newTab);
         break;
       case 'action':
-        if (newTab && !item.payload.startsWith('mailto:')) { window.open(item.payload, '_blank', 'noopener'); afterLeave(); }
-        else openUrl(item.payload);
+        openUrl(item.payload, newTab);
+        break;
+      case 'tool':
+        if (item.payload) copy(item.payload);
+        break;
+      case 'note-add': {
+        const value = String(item.payload).trim();
+        if (value) {
+          Store.state.notes.push({ id: Store.uid(), text: value, time: Date.now() });
+          Store.changed('notes');
+          flash(I18n.t('note_added'));
+        }
+        input.value = S().prefixes.notes;
+        run();
+        input.focus();
+        break;
+      }
+      case 'note':
+        copy(item.payload);
         break;
       case 'person': {
         const p = item.person;
@@ -503,7 +598,7 @@ const App = (() => {
   function secondary(item, anchor) {
     const entries = [];
     const t = I18n.t;
-    const persistent = ['link', 'person', 'snippet', 'command'].includes(item.kind) || item.isEngine;
+    const persistent = ['link', 'set', 'person', 'snippet', 'command'].includes(item.kind) || item.isEngine;
     if (persistent) {
       entries.push([t('aliases'), () => editAliases(item)]);
       const pinned = Store.state.pins.includes(item.key);
@@ -513,8 +608,12 @@ const App = (() => {
       }]);
     }
     if (item.kind === 'link' || (item.kind === 'web' && !item.isEngine) || (item.kind === 'action' && item.url)) {
-      entries.push([t('openNewTab'), () => { window.open(item.payload, '_blank', 'noopener'); afterLeave(); }]);
+      entries.push([t('openNewTab'), () => openUrl(item.payload, true)]);
       entries.push([t('copy'), () => copy(item.payload)]);
+    }
+    if (item.kind === 'link' && S().stripTrackers) {
+      const cleaned = Links.clean(item.payload);
+      if (cleaned.removed) entries.push([t('open_clean'), () => openUrl(cleaned.url, false)]);
     }
     if (item.kind === 'action' && item.url && !item.payload.startsWith('mailto:')) {
       entries.push([t('saveLink'), () => addLink({ url: item.payload, name: item.label })]);
@@ -525,6 +624,29 @@ const App = (() => {
     }
     if (item.kind === 'snippet') entries.push([t('edit'), () => Panel.open('snippets', item.id)]);
     if (item.kind === 'link') entries.push([t('edit'), () => Panel.open('links', item.id)]);
+    if (item.kind === 'set') entries.push([t('edit'), () => Panel.open('sets', item.id)]);
+    if (item.kind === 'tool' && item.payload) entries.push([t('copy'), () => copy(item.payload)]);
+    if (item.kind === 'note') {
+      entries.push([t('note_task'), () => {
+        Store.state.tasks.push({ id: Store.uid(), text: item.payload, done: false, created: Date.now() });
+        Store.state.notes = Store.state.notes.filter(n => n.id !== item.id);
+        Store.changed('tasks');
+        Store.changed('notes');
+        flash(t('task_added'));
+      }]);
+      entries.push([t('saveSnippet'), () => {
+        Store.state.snippets.push({ id: Store.uid(), trigger: '', title: '', body: item.payload, aliases: [] });
+        Store.state.notes = Store.state.notes.filter(n => n.id !== item.id);
+        Store.changed();
+        flash(t('saved'));
+      }]);
+      if (/^https?:\/\/\S+$/i.test(item.payload.trim())) entries.push([t('saveLink'), () => addLink({ url: item.payload.trim(), name: '' })]);
+      entries.push([t('copy'), () => copy(item.payload)]);
+      entries.push([t('delete'), () => {
+        Store.state.notes = Store.state.notes.filter(n => n.id !== item.id);
+        Store.changed('notes');
+      }]);
+    }
     if (item.kind === 'calc' || item.kind === 'color') entries.push([t('copy'), () => copy(item.payload)]);
     if (item.kind === 'web' && !item.isEngine) entries.push([t('copy') + ': ' + item.label, () => copy(item.label)]);
     if (item.kind === 'task') {
@@ -546,7 +668,7 @@ const App = (() => {
   }
 
   function findSource(item) {
-    const map = { link: 'links', person: 'people', snippet: 'snippets' };
+    const map = { link: 'links', set: 'sets', person: 'people', snippet: 'snippets' };
     if (item.isEngine) return Store.state.engines.find(e => e.id === item.id);
     if (map[item.kind]) return Store.state[map[item.kind]].find(x => x.id === item.id);
     return null;
@@ -563,16 +685,36 @@ const App = (() => {
     });
   }
 
+  function withScheme(url) {
+    return /^[a-z][a-z0-9+.-]*:/i.test(url) ? url : 'https://' + url;
+  }
+
   function addLink(prefill) {
     const p = prefill || {};
+    if (p.url && S().stripTrackers) p.url = Links.clean(p.url).url;
     UI.dialog(I18n.t('cmd_add_link'), [
       { name: 'name', label: I18n.t('col_name'), value: p.name || '' },
       { name: 'url', label: I18n.t('col_url'), value: p.url || '', type: 'url' },
       { name: 'aliases', label: I18n.t('col_aliases') }
     ], v => {
       if (!v.name.trim() || !v.url.trim()) return;
-      const url = /^[a-z][a-z0-9+.-]*:/i.test(v.url.trim()) ? v.url.trim() : 'https://' + v.url.trim();
+      const url = withScheme(v.url.trim());
+      if (!Links.safe(url)) { flash(I18n.t('blocked_url'), 2600); return; }
       Store.state.links.push({ id: Store.uid(), name: v.name.trim(), url, aliases: Store.splitList(v.aliases) });
+      Store.changed();
+      flash(I18n.t('saved'));
+    });
+  }
+
+  function addSet() {
+    UI.dialog(I18n.t('cmd_add_set'), [
+      { name: 'name', label: I18n.t('col_name') },
+      { name: 'urls', label: I18n.t('col_urls'), multiline: true },
+      { name: 'aliases', label: I18n.t('col_aliases') }
+    ], v => {
+      const urls = v.urls.split(/\s+/).filter(Boolean).map(withScheme).filter(Links.safe);
+      if (!v.name.trim() || !urls.length) return;
+      Store.state.sets.push({ id: Store.uid(), name: v.name.trim(), urls, aliases: Store.splitList(v.aliases) });
       Store.changed();
       flash(I18n.t('saved'));
     });
@@ -647,18 +789,64 @@ const App = (() => {
     UI.download('tacit-backup.json', JSON.stringify({ tacit_backup: 1, ...Store.state }, null, 2), 'application/json');
   }
 
+  function exportEncrypted() {
+    if (!Backup.supported()) {
+      flash(I18n.t('enc_unsupported'), 4200);
+      return;
+    }
+    UI.dialog(I18n.t('enc_title'), [
+      { name: 'pass', label: I18n.t('enc_pass'), type: 'password' },
+      { name: 'again', label: I18n.t('enc_again'), type: 'password' }
+    ], async v => {
+      if (v.pass.length < 8) { flash(I18n.t('enc_short'), 3200); return; }
+      if (v.pass !== v.again) { flash(I18n.t('enc_mismatch'), 3200); return; }
+      const body = await Backup.encrypt(JSON.stringify({ tacit_backup: 1, ...Store.state }), v.pass);
+      UI.download('tacit-backup.enc.json', body, 'application/json');
+    });
+  }
+
+  function applyImport(data) {
+    delete data.tacit_backup;
+    Store.replace(data);
+    Timers.restore();
+    flash(I18n.t('saved'));
+  }
+
+  function unlockImport(box) {
+    if (!Backup.supported()) {
+      flash(I18n.t('enc_unsupported'), 4200);
+      return;
+    }
+    UI.dialog(I18n.t('enc_unlock'), [{ name: 'pass', label: I18n.t('enc_pass'), type: 'password' }], async v => {
+      const plain = await Backup.decrypt(box, v.pass);
+      if (plain === null) { flash(I18n.t('enc_wrong'), 3600); return; }
+      try { applyImport(JSON.parse(plain)); } catch (e) { flash('JSON?'); }
+    });
+  }
+
   async function importAll() {
     const text = await UI.pickFile('application/json,.json');
     if (!text) return;
     try {
       const data = JSON.parse(text);
-      delete data.tacit_backup;
-      Store.replace(data);
-      Timers.restore();
-      flash(I18n.t('saved'));
+      if (Backup.isEncrypted(data)) unlockImport(data);
+      else applyImport(data);
     } catch (e) {
       flash('JSON?');
     }
+  }
+
+  async function cleanClipboard() {
+    const r = await ClipAccess.read({ mode: 'manual' });
+    if (!r.ok) {
+      flash(I18n.t(r.reason === 'unsupported' ? 'clip_unsupported' : 'clip_blocked_help'), 4200);
+      return;
+    }
+    const text = (r.text || '').trim();
+    if (!/^https?:\/\/\S+$/i.test(text)) { flash(I18n.t('clean_nolink')); return; }
+    const out = Links.clean(text);
+    if (!out.removed) { flash(I18n.t('clean_none'), 2400); return; }
+    copy(out.url, I18n.t('clean_done'));
   }
 
   function command(id) {
@@ -670,6 +858,14 @@ const App = (() => {
       case 'add-link': addLink(); break;
       case 'add-person': addPerson(); break;
       case 'add-snippet': addSnippet(); break;
+      case 'add-set': addSet(); break;
+      case 'clean-clip': cleanClipboard(); break;
+      case 'export-enc': exportEncrypted(); break;
+      case 'notes':
+        input.value = S().prefixes.notes;
+        run();
+        input.focus();
+        return;
       case 'save-clip': captureClipboard(true); break;
       case 'clear-clip':
         if (confirm(I18n.t('data_clear_clip_confirm'))) { Store.state.clips = []; Store.changed('clips'); }
@@ -753,6 +949,15 @@ const App = (() => {
   list.addEventListener('touchcancel', cancelPress);
   list.addEventListener('touchmove', cancelPress, { passive: true });
 
+  enginesEl.addEventListener('click', e => {
+    const chip = e.target.closest('.chip');
+    if (chip) searchWith(chip.dataset.id, e.ctrlKey || e.metaKey);
+  });
+
+  enginesEl.addEventListener('mousedown', e => {
+    if (e.target.closest('.chip')) e.preventDefault();
+  });
+
   home.addEventListener('click', e => {
     const check = e.target.closest('.task-check');
     if (check) { toggleTask(check.closest('.task').dataset.id); return; }
@@ -771,10 +976,15 @@ const App = (() => {
     else if (e.key === 'ArrowUp') { e.preventDefault(); if (homeMode) moveGrid(0, -1); else move(-1); }
     else if (homeMode && e.key === 'ArrowRight') { e.preventDefault(); moveGrid(1, 0); }
     else if (homeMode && e.key === 'ArrowLeft') { e.preventDefault(); moveGrid(-1, 0); }
-    else if (e.key === 'Enter') { e.preventDefault(); activate(rows[selected], e.ctrlKey || e.metaKey); }
-    else if (e.key === 'Tab' && rows[selected]) {
+    else if (e.key === 'Enter' && e.altKey) {
       e.preventDefault();
-      secondary(rows[selected], document.getElementById('r-' + selected) || input);
+      if (rows[selected]) secondary(rows[selected], document.getElementById('r-' + selected) || input);
+    }
+    else if (e.key === 'Enter') { e.preventDefault(); activate(rows[selected], e.ctrlKey || e.metaKey); }
+    else if (e.key === 'Tab') {
+      e.preventDefault();
+      if (!homeMode && chips.length) cycleEngine(e.shiftKey ? -1 : 1);
+      else if (rows[selected]) secondary(rows[selected], document.getElementById('r-' + selected) || input);
     } else if (e.key === 'Escape') {
       e.preventDefault();
       if (input.value) { input.value = ''; run(); }
@@ -832,9 +1042,12 @@ const App = (() => {
   matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
 
   Store.onChange(scope => {
-    if (scope === 'tasks' || scope === 'timers') {
+    if (scope === 'tasks' || scope === 'timers' || scope === 'notes') {
       if (isHome()) renderHome();
-      else if (!Panel.isOpen() && Compose.parse(input.value, Store.state).scope === 'task') run(true);
+      else if (!Panel.isOpen()) {
+        const current = Compose.parse(input.value, Store.state).scope;
+        if ((scope === 'tasks' && current === 'task') || (scope === 'notes' && current === 'note')) run(true);
+      }
       updateTitle();
       return;
     }
@@ -873,10 +1086,14 @@ const App = (() => {
     setInterval(() => { if (!document.hidden) tick(); }, 15000);
     setInterval(() => { if (!document.hidden && !input.value) nextPlaceholder(); }, 7000);
     if ('serviceWorker' in navigator && window.isSecureContext) {
+      const hadController = !!navigator.serviceWorker.controller;
       navigator.serviceWorker.register('sw.js').catch(() => {});
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (hadController) announce(I18n.t('update_ready'), I18n.t('update_reload'), () => location.reload());
+      });
     }
   }
 
-  return { init, run, refresh: run, command, copy, flash, addLink, addPerson, addSnippet, exportAll, importAll, captureClipboard, ingestClip, applySettings,
+  return { init, run, refresh: run, command, copy, flash, addLink, addPerson, addSnippet, exportAll, exportEncrypted, importAll, captureClipboard, ingestClip, applySettings,
     get input() { return input; } };
 })();

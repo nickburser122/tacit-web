@@ -24,10 +24,13 @@ const UI = (() => {
     people: svg('<circle cx="12" cy="9" r="3.5"/><path d="M5 19c.8-3.4 3.7-5 7-5s6.2 1.6 7 5"/>'),
     settings: svg('<path d="M5 8h9M18 8h1M5 16h1M10 16h9"/><circle cx="16" cy="8" r="2"/><circle cx="8" cy="16" r="2"/>'),
     data: svg('<ellipse cx="12" cy="6.5" rx="6.5" ry="2.5"/><path d="M5.5 6.5v11c0 1.4 2.9 2.5 6.5 2.5s6.5-1.1 6.5-2.5v-11M5.5 12c0 1.4 2.9 2.5 6.5 2.5s6.5-1.1 6.5-2.5"/>'),
-    keys: svg('<rect x="3.5" y="7" width="17" height="10" rx="2.5"/><path stroke-width="2" d="M7 11h.01M10.5 11h.01M14 11h.01M17 11h.01"/><path d="M8 14h8"/>')
+    keys: svg('<rect x="3.5" y="7" width="17" height="10" rx="2.5"/><path stroke-width="2" d="M7 11h.01M10.5 11h.01M14 11h.01M17 11h.01"/><path d="M8 14h8"/>'),
+    set: svg('<rect x="4" y="9" width="13" height="10" rx="2.5"/><path d="M8 6h10a2 2 0 0 1 2 2v8"/>'),
+    note: svg('<path d="M6 4h12v10l-5 6H6z"/><path d="M13 20v-5a1 1 0 0 1 1-1h4"/>'),
+    tool: svg('<path d="M9 7L4 12l5 5M15 7l5 5-5 5"/>')
   };
 
-  const kindIcon = { 'task-add': 'plus' };
+  const kindIcon = { 'task-add': 'plus', 'note-add': 'plus' };
 
   function glyphFor(item) {
     if (item.kind === 'color') {
@@ -201,7 +204,7 @@ const UI = (() => {
       form.append(el('label', { for: id, class: 'visually-hidden', text: f.label }));
       const input = f.multiline
         ? el('textarea', { id, placeholder: f.label, dir: 'auto' })
-        : el('input', { id, placeholder: f.label, dir: 'auto', type: f.type || 'text', autocomplete: 'off', spellcheck: 'false' });
+        : el('input', { id, placeholder: f.label, dir: 'auto', type: f.type || 'text', autocomplete: f.type === 'password' ? 'new-password' : 'off', spellcheck: 'false' });
       input.value = f.value || '';
       inputs[f.name] = input;
       form.append(input);
@@ -244,9 +247,9 @@ const UI = (() => {
     const list = el('div', { class: 'keys-list' });
     for (const [k, d] of I18n.t('keys')) list.append(el('kbd', { text: k }), el('span', { text: d }));
     const p = Store.state.settings.prefixes;
-    const engines = Store.state.engines.filter(e => e.prefix).map(e => [e.prefix + ' ⎵', e.name]);
+    const engines = Store.state.engines.filter(e => e.prefix && Providers.usable(e)).map(e => [e.prefix + ' ⎵', e.name]);
     for (const [k, d] of [[p.calc, I18n.t('p_calc')], [p.clip.trim() + ' ⎵', I18n.t('p_clip')], [p.people, I18n.t('p_people')],
-      [p.snippets, I18n.t('p_snippets')], [p.commands, I18n.t('p_commands')], [p.tasks.trim() + ' ⎵', I18n.t('p_tasks')], ...engines]) {
+      [p.snippets, I18n.t('p_snippets')], [p.commands, I18n.t('p_commands')], [p.tasks.trim() + ' ⎵', I18n.t('p_tasks')], [p.notes.trim() + ' ⎵', I18n.t('p_notes')], ...engines]) {
       list.append(el('kbd', { text: k }), el('span', { text: d }));
     }
     return list;

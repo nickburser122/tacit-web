@@ -9,8 +9,8 @@ const Panel = (() => {
   let filter = '';
   let clipMessage = '';
 
-  const tabs = ['links', 'people', 'snippets', 'engines', 'commands', 'settings', 'data', 'keys'];
-  const tabIcons = { links: 'link', people: 'people', snippets: 'snippet', engines: 'web', commands: 'command', settings: 'settings', data: 'data', keys: 'keys' };
+  const tabs = ['links', 'sets', 'people', 'snippets', 'engines', 'commands', 'settings', 'data', 'keys'];
+  const tabIcons = { links: 'link', sets: 'set', people: 'people', snippets: 'snippet', engines: 'web', commands: 'command', settings: 'settings', data: 'data', keys: 'keys' };
 
   const tables = {
     links: {
@@ -23,6 +23,17 @@ const Panel = (() => {
       ],
       csv: ['name', 'url', 'aliases'],
       pinKey: r => 'link:' + r.id
+    },
+    sets: {
+      list: () => Store.state.sets,
+      blank: () => ({ id: Store.uid(), name: '', urls: [], aliases: [] }),
+      cols: [
+        { key: 'name', label: 'col_name' },
+        { key: 'urls', label: 'col_urls', type: 'url', lines: true, multiline: true },
+        { key: 'aliases', label: 'col_aliases', list: true }
+      ],
+      csv: ['name', 'urls', 'aliases'],
+      pinKey: r => 'set:' + r.id
     },
     people: {
       list: () => Store.state.people,
@@ -50,14 +61,16 @@ const Panel = (() => {
     },
     engines: {
       list: () => Store.state.engines,
-      blank: () => ({ id: Store.uid(), prefix: '', name: '', url: '', aliases: [] }),
+      blank: () => ({ id: Store.uid(), prefix: '', name: '', url: '', cat: 'web', priv: false, aliases: [] }),
       cols: [
         { key: 'prefix', label: 'col_prefix' },
         { key: 'name', label: 'col_name' },
         { key: 'url', label: 'col_template', type: 'url' },
+        { key: 'cat', label: 'col_cat' },
+        { key: 'priv', label: 'col_priv', bool: true },
         { key: 'aliases', label: 'col_aliases', list: true }
       ],
-      csv: ['prefix', 'name', 'url', 'aliases'],
+      csv: ['prefix', 'name', 'url', 'cat', 'aliases'],
       pinKey: r => 'engine:' + r.id
     }
   };
@@ -173,6 +186,7 @@ const Panel = (() => {
       const needle = Norm.normalize(filter);
       const visible = list.filter(r => !needle || spec.cols.some(c => {
         const v = r[c.key];
+        if (typeof v === 'boolean') return false;
         return Norm.normalize(Array.isArray(v) ? v.join(' ') : v || '').includes(needle);
       }));
       tbody.replaceChildren(...visible.map(r => rowNode(name, spec, r, shared)));
@@ -181,7 +195,8 @@ const Panel = (() => {
 
     const notes = [];
     if (name === 'snippets') notes.push(el('p', { class: 'note', text: '{date} {time} {datetime} {clipboard} · {date:dd/MM/yyyy}' }));
-    if (name === 'engines') notes.push(el('p', { class: 'note', text: 'https://example.com/search?q=%s' }));
+    if (name === 'engines') notes.push(el('p', { class: 'note', text: t('providers_note') }));
+    if (name === 'sets') notes.push(el('p', { class: 'note', text: t('col_urls') }));
 
     setTimeout(() => {
       if (!focusId) return;
@@ -196,17 +211,29 @@ const Panel = (() => {
   function rowNode(name, spec, row, shared) {
     const tr = el('tr', { 'data-row': row.id });
     for (const c of spec.cols) {
-      const value = Array.isArray(row[c.key]) ? row[c.key].join(', ') : (row[c.key] || '');
+      if (c.bool) {
+        const box = el('input', { type: 'checkbox', 'aria-label': t(c.label) });
+        box.checked = !!row[c.key];
+        box.addEventListener('change', () => { row[c.key] = box.checked; Store.changed(); });
+        tr.append(el('td', { class: 'cell-center' }, box));
+        continue;
+      }
+      const value = Array.isArray(row[c.key]) ? row[c.key].join(c.lines ? '\n' : ', ') : (row[c.key] || '');
       const field = c.multiline
         ? el('textarea', { 'aria-label': t(c.label), dir: 'auto', rows: '1' })
         : el('input', { 'aria-label': t(c.label), dir: c.type === 'url' ? 'ltr' : 'auto', type: 'text', spellcheck: 'false', autocomplete: 'off' });
       field.value = value;
       field.addEventListener('input', () => {
-        row[c.key] = c.list ? Store.splitList(field.value) : field.value;
+        if (c.type === 'url' && !c.lines && field.value && !Links.safe(field.value.replace(/\{[a-z]+\}/g, 'https://x'))) {
+          field.classList.add('conflict');
+          return;
+        }
+        field.classList.remove('conflict');
+        row[c.key] = c.lines ? field.value.split(/\s+/).filter(Links.safe) : c.list ? Store.splitList(field.value) : field.value;
         Store.changed();
       });
       field.addEventListener('change', () => {
-        if (c.type === 'url' && field.value && !/^[a-z][a-z0-9+.-]*:/i.test(field.value) && name !== 'engines') {
+        if (c.type === 'url' && !c.lines && field.value && !/^[a-z][a-z0-9+.-]*:/i.test(field.value) && !/^\{/.test(field.value) && name !== 'engines') {
           field.value = 'https://' + field.value.trim();
           row[c.key] = field.value;
           Store.changed();
@@ -251,7 +278,8 @@ const Panel = (() => {
 
   function exportCsv(name) {
     const spec = tables[name];
-    const rows = [spec.csv, ...spec.list().map(r => spec.csv.map(k => Array.isArray(r[k]) ? r[k].join(', ') : (r[k] || '')))];
+    const joiner = k => (spec.cols.find(c => c.key === k) || {}).lines ? ' ' : ', ';
+    const rows = [spec.csv, ...spec.list().map(r => spec.csv.map(k => Array.isArray(r[k]) ? r[k].join(joiner(k)) : (r[k] || '')))];
     UI.download(`tacit-${name}.csv`, '\ufeff' + Importers.Csv.encode(rows), 'text/csv');
   }
 
@@ -272,7 +300,10 @@ const Panel = (() => {
       keys.forEach((k, i) => { if (spec.csv.includes(k)) obj[k] = r[i] ?? ''; });
       const existing = obj[keyField] ? list.find(x => Norm.normalize(x[keyField] || '') === Norm.normalize(obj[keyField])) : null;
       const target = existing || spec.blank();
-      for (const c of spec.cols) if (c.key in obj) target[c.key] = c.list ? Store.splitList(obj[c.key]) : obj[c.key];
+      for (const c of spec.cols) {
+        if (!(c.key in obj)) continue;
+        target[c.key] = c.lines ? obj[c.key].split(/\s+/).filter(Links.safe) : c.list ? Store.splitList(obj[c.key]) : obj[c.key];
+      }
       if (!existing) list.push(target);
       count++;
     }
@@ -394,6 +425,7 @@ const Panel = (() => {
     toggle(look, 'set_clock', 'clock');
     toggle(look, 'set_date', 'date');
     toggle(look, 'set_greeting', 'greeting');
+    toggle(look, 'set_hijri', 'hijri');
     text(look, 'set_name', () => s.name, v => { s.name = v; }, '180px', 'auto');
     toggle(look, 'set_home_tasks', 'homeTasks');
     number(look, 'set_results', 'results', 3, 30);
@@ -402,7 +434,9 @@ const Panel = (() => {
     select(search, 'set_fuzzy', 'strictness', [['off', t('fuzzy_off')], ['normal', t('fuzzy_normal')], ['loose', t('fuzzy_loose')]]);
     toggle(search, 'set_translit', 'transliterate');
     toggle(search, 'set_learn', 'learn');
-    select(search, 'set_engine', 'defaultEngine', Store.state.engines.filter(e => e.prefix).map(e => [e.prefix, e.name]));
+    select(search, 'set_engine', 'defaultEngine', Store.state.engines.filter(e => e.prefix && Providers.usable(e)).map(e => [e.prefix, e.name]));
+    text(search, 'set_translate_ar', () => s.translateArabicTo, v => { s.translateArabicTo = v.trim().toLowerCase(); }, '90px');
+    text(search, 'set_translate_other', () => s.translateOtherTo, v => { s.translateOtherTo = v.trim().toLowerCase(); }, '90px');
     const orderBox = el('div', { class: 'order-list' });
     const drawOrder = () => {
       orderBox.replaceChildren(...s.kindOrder.map((k, i) => el('span', { class: 'order-chip' }, t('kind_' + k),
@@ -415,8 +449,24 @@ const Panel = (() => {
     drawOrder();
     search.append(el('div', { class: 'setting' }, el('label', { text: t('set_order') })), orderBox);
 
+    const frontends = section('set_frontends');
+    frontends.append(el('p', { class: 'note', text: t('set_frontends_note') }));
+    for (const e of Store.state.engines.filter(x => 'hostDefault' in x)) {
+      const i = id();
+      const inp = el('input', { type: 'text', id: i, dir: 'ltr', spellcheck: 'false', placeholder: e.hostDefault || 'https://' });
+      inp.value = e.host && e.host !== e.hostDefault ? e.host : '';
+      inp.addEventListener('change', () => {
+        const clean = Links.normalizeHost(inp.value);
+        e.host = clean || e.hostDefault || '';
+        inp.value = clean && clean !== e.hostDefault ? clean : '';
+        Store.changed();
+      });
+      frontends.append(el('div', { class: 'setting' }, el('label', { for: i, text: e.name }), inp));
+    }
+
     const actions = section('set_actions');
     toggle(actions, 'set_newtab', 'newTab');
+    toggle(actions, 'set_strip', 'stripTrackers');
     toggle(actions, 'set_clear', 'clearAfter');
     text(actions, 'set_country', () => s.countryCode, v => { s.countryCode = v.replace(/\D/g, ''); }, '90px');
 
@@ -452,7 +502,7 @@ const Panel = (() => {
     select(clip, 'set_sensitive', 'sensitivePolicy', [['skip', t('sens_skip')], ['expire', t('sens_expire')], ['hide', t('sens_hide')]]);
 
     const prefixes = section('set_prefixes');
-    for (const [key, label] of [['calc', 'p_calc'], ['tasks', 'p_tasks'], ['clip', 'p_clip'], ['people', 'p_people'], ['snippets', 'p_snippets'], ['commands', 'p_commands']]) {
+    for (const [key, label] of [['calc', 'p_calc'], ['tasks', 'p_tasks'], ['clip', 'p_clip'], ['people', 'p_people'], ['snippets', 'p_snippets'], ['commands', 'p_commands'], ['notes', 'p_notes']]) {
       text(prefixes, label, () => s.prefixes[key], v => { s.prefixes[key] = v; }, '90px');
     }
     return wrap;
@@ -468,6 +518,7 @@ const Panel = (() => {
       el('div', { class: 'data-grid' },
         card('data_export', null, el('div', { class: 'toolbar' },
           el('button', { type: 'button', class: 'btn primary', text: t('data_export'), onclick: App.exportAll }),
+          el('button', { type: 'button', class: 'btn', text: t('data_export_enc'), onclick: App.exportEncrypted }),
           el('button', { type: 'button', class: 'btn', text: t('data_import'), onclick: App.importAll }))),
         card('data_url', 'data_url_note', el('code', { text: urlTemplate }),
           el('div', { class: 'toolbar' }, el('button', { type: 'button', class: 'btn', text: t('copy'), onclick: () => App.copy(urlTemplate) }))),

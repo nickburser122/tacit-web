@@ -7,6 +7,9 @@ const Compose = (() => {
     { id: 'add-link', key: 'cmd_add_link', extra: ['bookmark', 'new link'] },
     { id: 'add-person', key: 'cmd_add_person', extra: ['contact', 'new contact'] },
     { id: 'add-snippet', key: 'cmd_add_snippet', extra: ['new snippet', 'text'] },
+    { id: 'add-set', key: 'cmd_add_set', extra: ['launch set', 'group', 'workspace', 'new set'] },
+    { id: 'notes', key: 'cmd_notes', extra: ['note', 'jot', 'inbox', 'ملاحظات'] },
+    { id: 'clean-clip', key: 'cmd_clean_clip', extra: ['tracking', 'utm', 'clean link', 'strip'] },
     { id: 'clear-tasks', key: 'cmd_clear_tasks', extra: ['done', 'completed', 'todo', 'tasks'] },
     { id: 'uuid', key: 'cmd_uuid', extra: ['guid', 'random', 'id'] },
     { id: 'password', key: 'cmd_password', extra: ['pass', 'secure', 'random', 'generator'] },
@@ -14,6 +17,7 @@ const Compose = (() => {
     { id: 'save-clip', key: 'cmd_save_clip', extra: ['paste', 'clipboard'] },
     { id: 'clear-clip', key: 'cmd_clear_clip', extra: ['clipboard', 'wipe'] },
     { id: 'export', key: 'cmd_export', extra: ['backup', 'json'] },
+    { id: 'export-enc', key: 'cmd_export_enc', extra: ['encrypt', 'backup', 'password', 'passphrase'] },
     { id: 'import', key: 'cmd_import', extra: ['restore', 'json'] },
     { id: 'keys', key: 'cmd_keys', extra: ['shortcuts', 'help', 'keyboard'] }
   ];
@@ -22,11 +26,16 @@ const Compose = (() => {
     const pins = new Set(state.pins);
     const items = [];
     for (const l of state.links) {
-      if (!l.name || !l.url) continue;
+      if (!l.name || !l.url || !Links.safe(l.url)) continue;
       let host = '';
       try { host = new URL(l.url).hostname.replace(/^www\./, ''); } catch (e) { host = l.url; }
       items.push({ key: 'link:' + l.id, id: l.id, kind: 'link', label: l.name, sub: host, extra: [host.split('.')[0]],
         payload: l.url, aliases: l.aliases, pinned: pins.has('link:' + l.id) });
+    }
+    for (const st of state.sets) {
+      if (!st.name || !st.urls.length) continue;
+      items.push({ key: 'set:' + st.id, id: st.id, kind: 'set', label: st.name, sub: I18n.t('set_count', { n: st.urls.length }),
+        payload: st.urls, aliases: st.aliases, pinned: pins.has('set:' + st.id) });
     }
     for (const p of state.people) {
       if (!p.name) continue;
@@ -45,7 +54,7 @@ const Compose = (() => {
         pinned: pins.has('command:' + c.id) });
     }
     for (const e of state.engines) {
-      if (!e.name || !e.url) continue;
+      if (!e.name || !Providers.usable(e)) continue;
       items.push({ key: 'engine:' + e.id, id: e.id, kind: 'web', label: e.name, sub: e.prefix ? e.prefix + ' ⎵' : '',
         extra: [], payload: e.url, engine: e, aliases: e.aliases, pinned: pins.has('engine:' + e.id), isEngine: true });
     }
@@ -71,18 +80,15 @@ const Compose = (() => {
     const p = state.settings.prefixes;
     const trimmed = raw.replace(/^\s+/, '');
     const scoped = [
-      [p.clip, 'clip'], [p.calc, 'calc'], [p.people, 'person'], [p.snippets, 'snippet'], [p.commands, 'command'], [p.tasks, 'task']
+      [p.clip, 'clip'], [p.calc, 'calc'], [p.people, 'person'], [p.snippets, 'snippet'], [p.commands, 'command'], [p.tasks, 'task'], [p.notes, 'note']
     ].filter(([prefix]) => prefix).sort((a, b) => b[0].length - a[0].length);
     for (const [prefix, scope] of scoped) {
       if (!trimmed.toLowerCase().startsWith(prefix.toLowerCase())) continue;
       if (scope === 'task' && /[\d.(]/.test(trimmed.charAt(prefix.length))) continue;
       return { scope, text: trimmed.slice(prefix.length).trim() };
     }
-    const engines = [...state.engines].filter(e => e.prefix).sort((a, b) => b.prefix.length - a.prefix.length);
-    for (const e of engines) {
-      const token = e.prefix.toLowerCase() + ' ';
-      if (trimmed.toLowerCase().startsWith(token)) return { scope: 'web', text: trimmed.slice(token.length).trim(), engine: e };
-    }
+    const engine = Providers.parseScoped(trimmed, state);
+    if (engine) return engine;
     return { scope: 'all', text: raw.trim() };
   }
 
@@ -109,16 +115,19 @@ const Compose = (() => {
     }));
   }
 
-  function engineUrl(engine, text) {
-    return engine.url.replace('%s', encodeURIComponent(text).replace(/%20/g, '+'));
+  function engineUrl(engine, text, opts) {
+    return Providers.build(engine, text, opts);
   }
 
-  function defaultEngine(state) {
-    return state.engines.find(e => e.prefix === state.settings.defaultEngine) || state.engines[0];
+  function webRow(engine, text, state, to) {
+    const arrow = Providers.wantsTarget(engine) ? ' → ' + Providers.targets(text, state, to) : '';
+    return { key: 'web:' + engine.id, kind: 'web', label: text, sub: engine.name + arrow, engineId: engine.id,
+      payload: engineUrl(engine, text, { state, to }), transient: true };
   }
 
-  function webRow(engine, text) {
-    return { key: 'web:' + engine.id, kind: 'web', label: text, sub: engine.name, payload: engineUrl(engine, text), transient: true };
+  function engineHomeRow(engine) {
+    return { key: 'web-home:' + engine.id, kind: 'web', label: engine.name, sub: I18n.t('web_type'), engineId: engine.id,
+      payload: Providers.home(engine), transient: true };
   }
 
   function phoneRows(num) {
@@ -148,6 +157,17 @@ const Compose = (() => {
     return rows;
   }
 
+  function noteRows(state, text) {
+    const needle = Norm.normalize(text);
+    const rows = [...state.notes]
+      .sort((a, b) => b.time - a.time)
+      .filter(n => !needle || Norm.normalize(n.text).includes(needle))
+      .map(n => ({ key: 'note:' + n.id, id: n.id, kind: 'note', transient: true,
+        label: n.text.replace(/\s+/g, ' ').slice(0, 140), sub: relative(n.time), payload: n.text }));
+    if (text) rows.unshift({ key: 'note-add', kind: 'note-add', label: text, sub: I18n.t('note_add'), payload: text, transient: true });
+    return rows;
+  }
+
   function timerRow(spec) {
     const sub = spec.label || (spec.focus ? I18n.t('timer_focus') : I18n.t('timer_start'));
     return { key: 'timer', kind: 'timer', label: Timers.format(spec.seconds), sub, payload: { seconds: spec.seconds, label: spec.label || (spec.focus ? I18n.t('timer_focus') : '') }, transient: true };
@@ -168,20 +188,30 @@ const Compose = (() => {
     return rtf.format(-Math.round(s / 86400), 'day');
   }
 
-  function compose(raw, state) {
+  function compose(raw, state, opts) {
+    const o = opts || {};
     const limit = Math.max(3, Math.min(30, state.settings.results | 0 || 8));
     const parsed = parse(raw, state);
     const text = parsed.text;
     const rows = [];
+    let chips = [];
+    let active = null;
     const calcRow = t => {
       const r = Calc.evaluate(t);
       return r ? { key: 'calc', kind: 'calc', label: r.display, sub: t, payload: r.copy, transient: true } : null;
     };
     switch (parsed.scope) {
       case 'calc': { const r = calcRow(text); if (r) rows.push(r); break; }
-      case 'web': if (text) rows.push(webRow(parsed.engine, text)); break;
+      case 'web':
+        if (text) {
+          rows.push(webRow(parsed.engine, text, state, parsed.to));
+          chips = Providers.rank(text, state);
+          active = parsed.engine;
+        } else rows.push(engineHomeRow(parsed.engine));
+        break;
       case 'clip': rows.push(...clipRows(state, text).slice(0, limit * 4)); break;
       case 'task': rows.push(...taskRows(state, text).slice(0, limit * 4)); break;
+      case 'note': rows.push(...noteRows(state, text).slice(0, limit * 4)); break;
       case 'person': case 'snippet': case 'command':
         rows.push(...Engine.search(text, limit, new Set([parsed.scope])).map(h => h.item));
         break;
@@ -200,16 +230,23 @@ const Compose = (() => {
         const exactAlias = hits.length && Engine.tierOf(hits[0].raw) >= Engine.Tier.ALIAS_EXACT;
         if (calc && !exactAlias) rows.push(calc);
         if (rec?.type === 'phone') rows.push(...phoneRows(rec.value));
-        if (rec?.type === 'url') rows.push({ key: 'url', kind: 'action', label: rec.value.replace(/^https?:\/\//, ''), sub: I18n.t('open'), payload: rec.value, transient: true, url: true });
+        if (rec?.type === 'url') {
+          const cleaned = state.settings.stripTrackers ? Links.clean(rec.value) : { url: rec.value, removed: 0 };
+          rows.push({ key: 'url', kind: 'action', label: cleaned.url.replace(/^https?:\/\//, ''),
+            sub: cleaned.removed ? I18n.t('open_clean', { n: cleaned.removed }) : I18n.t('open'), payload: cleaned.url, transient: true, url: true });
+        }
         if (rec?.type === 'email') rows.push({ key: 'mail', kind: 'action', label: rec.value, sub: I18n.t('email'), payload: 'mailto:' + rec.value, transient: true, url: true });
+        rows.push(...Tools.parse(text, state));
+        rows.push(...Providers.direct(text, state));
         for (const h of hits) if (rows.length < limit) rows.push(h.item);
         if (calc && exactAlias) rows.splice(1, 0, calc);
-        const engine = defaultEngine(state);
-        if (engine) rows.push(webRow(engine, text));
+        chips = Providers.rank(text, state);
+        active = chips.find(e => e.id === o.engineId) || chips[0] || null;
+        if (active) rows.push(webRow(active, text, state));
       }
     }
-    return { rows, parsed };
+    return { rows, parsed, chips, active };
   }
 
-  return { buildItems, compose, parse, recognize, engineUrl, defaultEngine, commands };
+  return { buildItems, compose, parse, recognize, engineUrl, webRow, commands };
 })();
