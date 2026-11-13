@@ -283,7 +283,7 @@
     const migrated = Providers.migrate(legacy, () => 'n' + Math.random());
     check('migrate upgrades defaults', migrated.find(e => e.id === 'a').url.includes('{lang}') && migrated.find(e => e.id === 'b').hostDefault === 'https://www.youtube.com', migrated.slice(0, 2));
     check('migrate keeps custom', migrated.find(e => e.id === 'c').url === 'https://wiki.me/?s=%s' && migrated.find(e => e.id === 'c').cat === 'web', migrated.find(e => e.id === 'c'));
-    check('migrate adds missing defaults once', migrated.length === 15 + 1 && new Set(migrated.map(e => e.prefix)).size === migrated.length, migrated.map(e => e.prefix));
+    check('migrate adds missing defaults once', migrated.length === Providers.defaults().length + 1 && new Set(migrated.map(e => e.prefix)).size === migrated.length, migrated.map(e => e.prefix));
 
     const merged = Store.merge({
       version: 1,
@@ -291,12 +291,12 @@
       engines: legacy.concat([{ id: 'd', prefix: 'evil', name: 'Evil', url: 'javascript:alert({q})' }]),
       settings: { kindOrder: ['link', 'person', 'web'] }
     });
-    check('merge drops unsafe links keeps blank', eq(merged.links.map(l => l.id), ['y', 'z']), merged.links);
+    check('merge drops unsafe links keeps blank', eq(merged.links.filter(l => !l.ck).map(l => l.id), ['y', 'z']), merged.links.filter(l => !l.ck));
     check('merge drops unsafe engines', !merged.engines.some(e => e.prefix === 'evil'), merged.engines.map(e => e.prefix));
-    check('merge migrates and versions', merged.version === 2 && merged.engines.length === 16 && Array.isArray(merged.sets) && Array.isArray(merged.notes), merged.version);
+    check('merge migrates and versions', merged.version === 2 && merged.engines.length === Providers.defaults().length + 1 && Array.isArray(merged.sets) && Array.isArray(merged.notes), merged.version);
     check('merge fills kind order', merged.settings.kindOrder.includes('set') && merged.settings.kindOrder.indexOf('set') < merged.settings.kindOrder.indexOf('web') && merged.settings.kindOrder.includes('clip'), merged.settings.kindOrder);
     check('merge sanitizes sets', eq(Store.merge({ sets: [{ id: 's', name: 'n', urls: ['https://a.com', 'javascript:x'] }] }).sets[0].urls, ['https://a.com']), null);
-    check('merge version 2 not remigrated', Store.merge({ version: 2, engines: [legacy[2]] }).engines.length === 1, null);
+    check('merge version 2 not remigrated', Store.merge({ version: 2, engines: [legacy[2]] }).engines.every(e => e.id === legacy[2].id || !['ddg', 'g', 'w', 'yt', 'map'].includes(e.prefix)), null);
 
     const hex = text => Tools.sha256(Tools.utf8(text));
     check('sha256 empty', hex('') === 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855', hex(''));
@@ -368,6 +368,115 @@
     check('compose math still first', Compose.compose('2+2', fresh).rows[0].kind === 'calc', null);
 
     check('engine url legacy encoding', Compose.engineUrl({ url: 'https://d.com/?q=%s' }, 'a b&c') === 'https://d.com/?q=a+b%26c', null);
+
+
+    const words = (text, set) => [...text].filter(c => set.includes(c)).length;
+    const L = 'abcdefghijklmnopqrstuvwxyz';
+    const U = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    const D = '0123456789';
+    const S = '!?#$%&*-_+=';
+    const pwOf = q => (Gen.parse(q)[0] || {}).payload || '';
+    check('pw default 20 chars with all classes', (p => p.length === 20 && words(p, L) && words(p, U) && words(p, D) && words(p, S))(pwOf('pw')), pwOf('pw'));
+    check('pw length', pwOf('pw 33').length === 33 && pwOf('pass 5').length === 5 && pwOf('password 512').length === 512 && pwOf('pw 9999').length === 512, null);
+    const mix = pwOf('pw 30 u30 d20 s10');
+    check('pw percentages exact', words(mix, U) === 9 && words(mix, D) === 6 && words(mix, S) === 3 && words(mix, L) === 12, mix);
+    check('pw class letters', (p => p.length === 40 && !words(p, U) && !words(p, S) && words(p, L) && words(p, D))(pwOf('pw 40 ld')), pwOf('pw 40 ld'));
+    check('pw zero percent removes class', !words(pwOf('pw 60 s0'), S) && !words(pwOf('pw 60 d0'), D), null);
+    check('pw hex', /^[0-9a-f]{10}$/.test(pwOf('pw 10 hex')), pwOf('pw 10 hex'));
+    check('pw excludes ambiguous unless asked', !/[il1Lo0O]/.test(pwOf('pw 512 lud')) && /[il1Lo0O]/.test(pwOf('pw 512 lud amb')), null);
+    check('pw no= and sym=', !/[abc]/.test(pwOf('pw 300 l no=abc')) && /^[xyz!]{30}$/.test(pwOf('pw 30 s sym=xyz!')), pwOf('pw 30 s sym=xyz!'));
+    const many = Gen.parse('pw 12 x4');
+    check('pw count rows', many.length === 5 && many[4].payload.split('\n').length === 4 && new Set(many.slice(0, 4).map(r => r.payload)).size === 4, many.map(r => r.label));
+    check('pw rejects junk and empty class sets', Gen.parse('pw 8 q').length === 0 && Gen.parse('pw 8 l no=abcdefghijklmnopqrstuvwxyz').length === 0 && Gen.parse('pass').length === 0, null);
+    check('pw reports entropy', /bits/.test(Gen.parse('pw 20')[0].sub) && (b => b > 100 && b < 140)(parseInt(Gen.parse('pw 20')[0].sub.split('·')[1], 10)), Gen.parse('pw 20')[0].sub);
+    check('pin keeps zero and one', /^\d{6}$/.test(pwOf('pin')) && /^\d{8}$/.test(pwOf('pin 8')) && /[01]/.test(pwOf('pin 400')), pwOf('pin 400'));
+
+    const randOf = q => (Gen.parse(q)[0] || {}).payload;
+    check('rand default range', (v => Number.isInteger(+v) && v >= 1 && v <= 100)(randOf('rand')), randOf('rand'));
+    check('rand range forms', ['rand 5 9', 'rand 5-9', 'rand 5..9', 'rand 5 to 9', 'random 5~9'].every(q => { const v = +randOf(q); return v >= 5 && v <= 9 && Number.isInteger(v); }), null);
+    check('rand swaps and negatives', (v => v >= -5 && v <= -1)(+randOf('rand -1 -5')) && (v => v >= -3 && v <= 3)(+randOf('rand -3..3')), null);
+    check('rand single bound', (v => v >= 1 && v <= 6)(+randOf('rand 6')) && randOf('rand 7 7') === '7', null);
+    const fl = randOf('rand 0 1 f3');
+    check('rand float decimals', /^[01]\.\d{3}$/.test(fl) && +fl >= 0 && +fl <= 1 && /^\d\.\d{2}$/.test(randOf('rand 0.5 2.5')) && /^\d+$/.test(randOf('rand 0.5 9.5 i')), fl);
+    check('rand count sort uniq', randOf('rand 1 10 x20 uniq sort') === '1\n2\n3\n4\n5\n6\n7\n8\n9\n10', randOf('rand 1 10 x20 uniq sort'));
+    check('rand count and separators', randOf('rand 1 9 x5').split('\n').length === 5 && randOf('rand 1 9 x5 sep=,').split(',').length === 5 && Gen.parse('rand 1 9 x5')[0].alts.length === 3, null);
+    check('rand huge range', Number.isFinite(+randOf('rand 0 1000000000000')) && Gen.parse('rand abc').length === 0 && Gen.parse('rand 1 2 3').length === 0, null);
+    const tally = new Array(6).fill(0);
+    for (let i = 0; i < 6000; i++) tally[+randOf('rand 1 6') - 1]++;
+    check('rand uniform', tally.every(n => n > 800 && n < 1200), tally);
+    check('rand uniform at word boundary', (() => { const c = [0, 0, 0]; for (let i = 0; i < 3000; i++) c[Gen.below(3)]++; return c.every(n => n > 800); })(), null);
+
+    const tb = Gen.parse('table 4 1..9 pw:6 uuid')[0];
+    const lines = tb.payload.split('\n');
+    check('table shape', lines.length === 4 && lines.every(l => l.split('\t').length === 3) && /^[0-9a-f-]{36}$/.test(lines[0].split('\t')[2]), tb.payload);
+    check('table formats', tb.alts.length === 3 && tb.alts[0][1]().split('\n')[0].split(',').length === 3 && Array.isArray(JSON.parse(tb.alts[1][1]())) && /^\| n1 \| pw \| uuid \|/.test(tb.alts[2][1]()), tb.alts.map(a => a[0]));
+    const named = Gen.parse('table 2 id=id:10:5 kind=pick:a,b price=1..9f2 on=bool')[0];
+    const nl = named.payload.split('\n');
+    check('table header and columns', nl[0] === 'id\tkind\tprice\ton' && nl[1].startsWith('10\t') && nl[2].startsWith('15\t') && /^\d\.\d{2}$/.test(nl[1].split('\t')[2]) && /^(true|false)$/.test(nl[1].split('\t')[3]), named.payload);
+    check('table json keeps types', (j => typeof j[0].id === 'number' && typeof j[0].price === 'number' && typeof j[0].on === 'boolean')(JSON.parse(named.alts.find(a => a[0] === 'gen_json_table')[1]())), null);
+    check('table format flag and default rows', Gen.parse('table 1..5 csv')[0].payload.split('\n').length === 5 && /^[0-9a-f-]+,/.test(Gen.parse('table 2 uuid pw:4 csv')[0].payload), Gen.parse('table 2 uuid pw:4 csv')[0].payload);
+    check('table dates', /^2024-\d\d-\d\d$/.test(Gen.parse('table 1 date:2024-01-01..2024-12-31')[0].payload) && Gen.parse('table 1 date:nonsense').length === 0, null);
+    check('table rejects junk', Gen.parse('table 3 bogus').length === 0 && Gen.parse('table 3').length === 0 && Gen.parse('table').length === 0, null);
+    check('table caps cells', Gen.parse('table 99999 1..9 1..9')[0].payload.split('\n').length === 2000, null);
+    check('uuid rows', Gen.parse('uuid').length === 1 && Gen.parse('uuid 3').length === 4 && /^[0-9A-F]{32}$/.test(Gen.parse('uuid upper nodash')[0].payload), null);
+
+    const crash = q => { try { return Tools.parse(q).length + Gen.parse(q).length + Compose.compose(q, fresh).rows.length >= 0; } catch (e) { return false; } };
+    check('prototype names never crash', ['constructor x', 'toString y', '__proto__ z', 'hasOwnProperty 1', 'valueOf 2', 'constructor', 'rand constructor'].every(crash), null);
+
+    const links = [{ name: 'A [x]', url: 'https://e.com/a b(1)?utm_source=z', aliases: ['aa'] }, { name: 'B', url: 'https://b.org', aliases: [] }];
+    const fm = Object.fromEntries(Gen.linkFormats('A [x]', 'https://e.com/a b?utm_source=z&k=1').map(([k, f]) => [k, f()]));
+    check('link formats', fm.fmt_md === '[A \\[x\\]](https://e.com/a%20b?utm_source=z&k=1)' && fm.fmt_html === '<a href="https://e.com/a b?utm_source=z&amp;k=1">A [x]</a>' && fm.fmt_domain === 'e.com' && fm.fmt_clean === 'https://e.com/a%20b?k=1', fm);
+    check('links as md urls csv json', Gen.linksAs('md', links).split('\n')[0] === '- [A \\[x\\]](https://e.com/a%20b%281%29?utm_source=z)' && Gen.linksAs('urls', links).split('\n').length === 2 && Importers.Csv.decode(Gen.linksAs('csv', links))[1][2] === 'aa' && JSON.parse(Gen.linksAs('json', links))[1].name === 'B', null);
+    check('links html round trips through importer', (b => b.length === 2 && b[0].aliases[0] === 'aa' && b[1].url === 'https://b.org')(Importers.bookmarks(Gen.linksAs('html', links))), null);
+
+    const prefixes = Providers.defaults().map(d => d.prefix);
+    const reserved = ['=', '@', ';', '>', '+', 'cb', 'note', 'pw', 'pass', 'password', 'pin', 'rand', 'random', 'rnd', 'table', 'tbl', 'uuid', 'guid', 'b64', 'unb64', 'url', 'sha256', 'json', 'slug', 'upper', 'lower', 'count', 'digits', 'fix', 'hijri'];
+    check('provider prefixes unique and unreserved', new Set(prefixes).size === prefixes.length && !prefixes.some(p => reserved.includes(p)), prefixes);
+    check('provider templates safe and usable', Providers.defaults().every(d => Links.safe(d.url.replace(/\{[a-z]+\}/g, 'https://x')) && d.url.startsWith('http') || d.url.startsWith('{host}')) && fresh.engines.filter(e => Providers.usable(e)).length === prefixes.length - 1, null);
+    check('provider categories known', Providers.defaults().every(d => Providers.CATEGORIES.includes(d.cat)), null);
+    const px = Compose.compose('px how do magnets work', fresh);
+    check('perplexity scope', px.parsed.scope === 'web' && px.rows[0].payload === 'https://www.perplexity.ai/search?q=how+do+magnets+work' && px.active.prefix === 'px', px.rows[0]);
+    check('wolfram and duck.ai urls', Compose.compose('wolf 2+2', fresh).rows[0].payload === 'https://www.wolframalpha.com/input?i=2%2B2' && Compose.compose('ai hi there', fresh).rows[0].payload === 'https://duckduckgo.com/?q=hi+there&ia=chat', null);
+    check('google translate target', Compose.compose('gt>fr bonjour', fresh).rows[0].payload.includes('tl=fr&text=bonjour') && Compose.compose('gt hello', fresh).rows[0].payload.includes('tl=ar'), Compose.compose('gt>fr bonjour', fresh).rows[0].payload);
+    check('question intent ranks AI first among extras', Providers.intentOf('how do magnets work') === 'question' && Providers.rank('how do magnets work', fresh).slice(0, 3).some(e => e.cat === 'ai') && Providers.intentOf('cats') === 'word', Providers.rank('how do magnets work', fresh).slice(0, 4).map(e => e.prefix));
+    const manyChips = Compose.compose('hello', fresh).chips;
+    check('chips capped', manyChips.length === 10 && Compose.compose('hn cats', fresh).chips.length === 10 && Compose.compose('hn cats', fresh).chips.some(c => c.prefix === 'hn'), manyChips.map(c => c.prefix));
+    const lowChips = Store.fresh();
+    lowChips.settings.chipMax = 4;
+    check('chipMax setting honoured', Compose.compose('hello', lowChips).chips.length === 4 && Compose.compose('so cats', lowChips).chips.some(c => c.prefix === 'so'), null);
+
+    const apps = fresh.links.filter(l => l.ck);
+    check('fihrist apps baked in', apps.length === Catalog.APPS.length && Catalog.APPS.length > 50 && apps.every(l => Links.safe(l.url) && l.name && l.names.length), apps.length);
+    check('catalog keys unique', new Set(Catalog.APPS.map(a => a.k)).size === Catalog.APPS.length && new Set(Catalog.APPS.map(a => a.u)).size === Catalog.APPS.length, null);
+    check('every engine tagged', fresh.engines.every(e => e.ck === 'e:' + e.prefix), fresh.engines.filter(e => !e.ck).map(e => e.prefix));
+    Engine.configure({ strictness: 'normal', transliterate: true, kindOrder: fresh.settings.kindOrder });
+    Engine.setItems(Compose.buildItems(fresh));
+    const find = q => Engine.search(q, 5).map(h => h.item.label);
+    check('search finds apps by name alias and Arabic', find('ledger')[0] === 'Ledger Form' && find('drug list').includes('Drug List') && find('نموذج الدفتر')[0] === 'Ledger Form' && find('fahras').includes('Index Builder') && find('roi').includes('ROI Calculator'), [find('ledger'), find('drug list'), find('نموذج الدفتر')]);
+    check('single letters do not hijack', Engine.search('c', 3).every(h => Engine.tierOf(h.raw) < Engine.Tier.ALIAS_EXACT) && Engine.search('r', 3).every(h => h.item.label !== 'Platen'), find('c'));
+    check('app rows describe themselves', Compose.buildItems(fresh).find(i => i.label === 'Ledger Form').sub === 'Pharmacy ledger entry form', null);
+
+    const gone = Store.fresh();
+    Catalog.remove(gone, 'e:px');
+    Catalog.remove(gone, 'a:platen');
+    const roundTrip = Store.merge(JSON.parse(JSON.stringify(gone)));
+    check('removed built-ins stay removed', !roundTrip.engines.some(e => e.prefix === 'px') && !roundTrip.links.some(l => l.ck === 'a:platen') && roundTrip.catalog.dropped.length === 2, roundTrip.catalog);
+    check('removal unpins and keeps the rest', roundTrip.engines.length === Providers.defaults().length - 1 && roundTrip.links.filter(l => l.ck).length === Catalog.APPS.length - 1, null);
+    let uidN = 0;
+    check('restore brings one back', Catalog.restore(roundTrip, 'e:px', () => 'u' + uidN++) && roundTrip.engines.some(e => e.prefix === 'px') && !roundTrip.catalog.dropped.includes('e:px') && !Catalog.restore(roundTrip, 'e:px', () => 'u'), roundTrip.catalog);
+    const clash = Store.fresh();
+    clash.engines.find(e => e.prefix === 'px').prefix = 'xx';
+    Catalog.remove(clash, 'e:px');
+    clash.engines.push({ id: 'mine', prefix: 'px', name: 'Mine', url: 'https://m.me/?q=%s', cat: 'web', aliases: [] });
+    check('restore refuses a taken prefix', Catalog.restore(clash, 'e:px', () => 'q') === false && clash.catalog.dropped.includes('e:px'), clash.catalog);
+    const wipe = Store.fresh();
+    Catalog.removeAll(wipe, Catalog.appEntries().map(e => e.ck));
+    check('remove all then restore all', wipe.links.filter(l => l.ck).length === 0 && Catalog.restoreAll(wipe, Catalog.appEntries().map(e => e.ck), () => 'w' + Math.random()) === Catalog.APPS.length, null);
+    const legacyUser = Store.merge({ version: 2, engines: Providers.defaults().filter(d => d.prefix !== 'g' && ['ddg', 'b', 'sp', 'mj', 'sx', 'w', 'd', 'tr', 'gh', 'cg', 'mdn', 'r', 'yt', 'map'].includes(d.prefix)).map((d, i) => ({ id: 'l' + i, aliases: [], ...d })) });
+    check('existing user gets new providers but deleted old ones stay gone', !legacyUser.engines.some(e => e.prefix === 'g') && legacyUser.engines.some(e => e.prefix === 'px') && legacyUser.engines.some(e => e.prefix === 'wolf') && legacyUser.links.filter(l => l.ck).length === Catalog.APPS.length, legacyUser.catalog);
+    const second = Store.merge(JSON.parse(JSON.stringify(legacyUser)));
+    check('catalog sync is idempotent', second.engines.length === legacyUser.engines.length && second.links.length === legacyUser.links.length, null);
+    check('merge tolerates broken catalog data', Store.merge({ version: 2, catalog: { rev: 'x', dropped: 5 } }).engines.length === Providers.defaults().length && Store.merge({ version: 2, catalog: null }).links.some(l => l.ck), null);
 
     if (Backup.supported()) {
       const box = JSON.parse(await Backup.encrypt('{"hello":"عالم"}', 'correct horse'));

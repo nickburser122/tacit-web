@@ -345,3 +345,20 @@ table.grid {
 }
 
 .grid td input.conflict, .grid td textarea.conflict { border-color: var(--accent); }
+
+.lib { margin-bottom: 18px; }
+.lib-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 4px; }
+.lib-head h3 { margin: 0; flex: 1 1 auto; }
+.lib-count { color: var(--muted); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.lib-group { margin: 16px 0 8px; font-size: 11.5px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+.pills { display: flex; flex-wrap: wrap; gap: 7px; }
+.pill {
+  display: inline-flex; align-items: center; gap: 7px; padding: 7px 13px; border: 1px solid var(--line); border-radius: 999px;
+  background: transparent; color: var(--muted); font: inherit; font-size: 13.5px; cursor: pointer;
+  text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--muted) 55%, transparent);
+  transition: background-color 0.12s, border-color 0.12s, color 0.12s, transform 0.12s;
+}
+.pill:hover { border-color: var(--ring); color: var(--fg); }
+.pill[aria-pressed="true"] { background: var(--surface); border-color: var(--ring); color: var(--fg); text-decoration: none; }
+.pill:active { transform: scale(0.95); }
+.pill-tag { font-size: 11px; color: var(--muted); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }

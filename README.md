@@ -17,9 +17,14 @@ Charcoal by night, bone by day, with one ember accent. The sun/moon button in th
 | `25m timer tea`, `remind me in 5 minutes to call mom`, `pomodoro` | Start a timer. The tab title counts down and a chime plays |
 | `#3b82a0`, `rgb(59 130 160)`, `hsl(198 46% 43%)` | Colour converter |
 | `>uuid`, `>password`, `>timestamp` | Copy a UUID, a strong password or the Unix time |
+| `pw`, `pw 32`, `pw 24 u30 d20 s10`, `pw 16 lud`, `pw 12 x5` | Password with full control: length, classes (`l` `u` `d` `s`), per-class percent (`s10`, `s0` removes), count (`x5`). Extras: `hex`, `amb`, `no=il`, `sym=!@#`. Shows entropy |
+| `pin 6`, `uuid 5`, `uuid upper nodash` | PINs and UUIDs |
+| `rand 1 100`, `rand 0 1 f3`, `rand 1 50 x10 uniq sort`, `rand 5..9`, `rand 6` | Random integer or float between two numbers. `f3` decimals, `x10` count, `uniq`, `sort`, `sep=,`. One bound means 1 to N |
+| `table 10 1..100 0..1f2 pw:12 uuid` | Random table, one token per column: `a..b` range, `pw:16:u30`, `pin:4`, `uuid`, `id:100:5`, `pick:a,b,c`, `bool`, `date:2024-01-01..2024-12-31`, `hex:8`, `str:10`. `name=spec` labels a column, `h` adds a header, `csv` `json` `md` pick the format. Enter copies TSV for Excel and Sheets; Alt+Enter converts |
 | `@name`, `;snippet`, `cb text` | People, snippets, clipboard history |
 | `b64 hello`, `unb64 aGVsbG8=`, `url a b`, `sha256 text`, `json {...}`, `slug`, `upper`, `lower`, `count`, `digits ١٢٣` | Text tools. Enter copies the result |
 | `fix hgsghl` | Retype text typed on the wrong keyboard layout (Latin ↔ Arabic) |
+| `>copy links` | Copy every link as Markdown, plain URLs, CSV, JSON, or save a bookmarks file |
 | `owner/repo`, `r/privacy`, `u/name` | Jump straight to a GitHub repository, subreddit or Reddit user |
 | `https://site.com/?utm_source=x` | Opens with tracking parameters removed |
 | `morning` (a launch set) | Opens every link in the set at once |
@@ -33,14 +38,27 @@ Typing a query shows a row of providers under the bar, ordered by what you typed
 
 | Prefix | Provider | Category |
 | --- | --- | --- |
-| `ddg` (default) `b` `sp` `mj` `sx` | DuckDuckGo, Brave Search, Startpage, Mojeek, SearXNG | Web |
-| `g` | Google | Web |
-| `w` `d` | Wikipedia, Wiktionary (Arabic or English chosen from your text) | Knowledge, dictionary |
-| `tr` | Translate (Lingva), `tr>fr text` picks the target language | Translate |
-| `gh` `cg` `mdn` | GitHub, Codeberg, MDN | Code |
-| `r` | Reddit | Social |
-| `yt` | YouTube | Video |
-| `map` | OpenStreetMap | Maps |
+| `ddg` (default) `b` `sp` `mj` `qw` `sx` | DuckDuckGo, Brave Search, Startpage, Mojeek, Qwant, SearXNG | Web |
+| `g` `bing` `ec` `gi` | Google, Bing, Ecosia, Google Images | Web |
+| `px` `ai` `gpt` | Perplexity, Duck.ai, ChatGPT (no sign-in). Question-shaped text ranks these first | AI |
+| `w` `wolf` `sch` `arc` | Wikipedia, WolframAlpha, Google Scholar, Internet Archive | Knowledge |
+| `d` `am` `ud` | Wiktionary, Almaany (Arabic), Urban Dictionary (English) | Dictionary |
+| `tr` `gt` | Translate (Lingva), Google Translate; `tr>fr text` picks the target | Translate |
+| `gh` `cg` `mdn` `so` `npm` `pypi` `ciu` `fd` | GitHub, Codeberg, MDN, Stack Overflow, npm, PyPI, Can I use, F-Droid | Code |
+| `r` `hn` | Reddit, Hacker News | Social |
+| `yt` `imdb` `spot` | YouTube, IMDb, Spotify | Media |
+| `amz` `gp` | Amazon, Google Play | Shopping |
+| `map` `gm` | OpenStreetMap, Google Maps | Maps |
+
+Only the first few providers show under the search bar (Settings, Look: providers shown). Every prefix still works.
+
+## Library
+
+Panel, Library lists every built-in provider and every Fihrist app as a pill. One click removes it, one click brings it back, and Remove all or Restore all work per section. Removed items stay removed when new built-ins ship later. Deleting a built-in row from the Providers or Links tables does the same.
+
+## Copy as another format
+
+Alt+Enter on a link copies it as a Markdown link, an HTML link, its domain, or without tracking parameters. On a launch set it copies the addresses or a Markdown list. Generated tables and number lists convert to CSV, JSON, Markdown or comma separated the same way.
 
 Reddit, YouTube, Translate and SearXNG are front-end addresses you can change in Settings, under Front-ends. Paste a Redlib, Piped, Invidious, Lingva or SearXNG instance, or your own, and every search and direct jump follows it. SearXNG stays hidden until you give it an address. Public front-ends come and go, so keep one you trust.
 

@@ -27,7 +27,8 @@ const UI = (() => {
     keys: svg('<rect x="3.5" y="7" width="17" height="10" rx="2.5"/><path stroke-width="2" d="M7 11h.01M10.5 11h.01M14 11h.01M17 11h.01"/><path d="M8 14h8"/>'),
     set: svg('<rect x="4" y="9" width="13" height="10" rx="2.5"/><path d="M8 6h10a2 2 0 0 1 2 2v8"/>'),
     note: svg('<path d="M6 4h12v10l-5 6H6z"/><path d="M13 20v-5a1 1 0 0 1 1-1h4"/>'),
-    tool: svg('<path d="M9 7L4 12l5 5M15 7l5 5-5 5"/>')
+    tool: svg('<path d="M9 7L4 12l5 5M15 7l5 5-5 5"/>'),
+    library: svg('<rect x="4" y="4" width="6.5" height="6.5" rx="1.8"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.8"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.8"/><path d="M16.7 13.5v6.5M13.5 16.7H20"/>')
   };
 
   const kindIcon = { 'task-add': 'plus', 'note-add': 'plus' };

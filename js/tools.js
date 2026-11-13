@@ -277,8 +277,7 @@ const Tools = (() => {
     if (!m) return [];
     const head = m[1].toLowerCase();
     if (HIJRI_WORDS.has(head)) return hijriRows(m[2]);
-    const name = ALIASES[head];
-    return name ? HANDLERS[name](m[2]) : [];
+    return Object.hasOwn(ALIASES, head) ? HANDLERS[ALIASES[head]](m[2]) : [];
   }
 
   return { parse, sha256, utf8, toBase64, fromBase64, swapLayout, toLatinDigits, toArabicDigits, slug, hijriLong, hijriOf, gregorianOfHijri, hijriSupported };

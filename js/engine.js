@@ -175,7 +175,7 @@ const Engine = (() => {
     let best = 0;
     for (const alias of item._aliases) {
       if (alias === q) return encode(Tier.ALIAS_EXACT, 1000);
-      if (alias.startsWith(q)) best = Math.max(best, encode(Tier.ALIAS_PREFIX, 1000 - alias.length));
+      if (q.length > 1 && alias.startsWith(q)) best = Math.max(best, encode(Tier.ALIAS_PREFIX, 1000 - alias.length));
     }
     for (const name of item._names) {
       let v = queryWords.length > 1 ? scoreMulti(queryWords, name, typo) : scoreSingle(q, name, typo);

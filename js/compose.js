@@ -16,6 +16,7 @@ const Compose = (() => {
     { id: 'timestamp', key: 'cmd_timestamp', extra: ['unix', 'epoch', 'time'] },
     { id: 'save-clip', key: 'cmd_save_clip', extra: ['paste', 'clipboard'] },
     { id: 'clear-clip', key: 'cmd_clear_clip', extra: ['clipboard', 'wipe'] },
+    { id: 'copy-links', key: 'cmd_copy_links', extra: ['export links', 'markdown', 'bookmarks', 'convert links', 'csv'] },
     { id: 'export', key: 'cmd_export', extra: ['backup', 'json'] },
     { id: 'export-enc', key: 'cmd_export_enc', extra: ['encrypt', 'backup', 'password', 'passphrase'] },
     { id: 'import', key: 'cmd_import', extra: ['restore', 'json'] },
@@ -29,7 +30,8 @@ const Compose = (() => {
       if (!l.name || !l.url || !Links.safe(l.url)) continue;
       let host = '';
       try { host = new URL(l.url).hostname.replace(/^www\./, ''); } catch (e) { host = l.url; }
-      items.push({ key: 'link:' + l.id, id: l.id, kind: 'link', label: l.name, sub: host, extra: [host.split('.')[0]],
+      const desc = l.desc ? l.desc[I18n.lang === 'ar' ? 1 : 0] : '';
+      items.push({ key: 'link:' + l.id, id: l.id, kind: 'link', label: l.name, sub: desc || host, extra: l.names ? [host.split('.')[0], ...l.names] : [host.split('.')[0]],
         payload: l.url, aliases: l.aliases, pinned: pins.has('link:' + l.id) });
     }
     for (const st of state.sets) {
@@ -113,6 +115,15 @@ const Compose = (() => {
     return [['HEX', c.hex], ['RGB', c.rgb], ['HSL', c.hsl]].map(([name, value]) => ({
       key: 'color:' + name, kind: 'color', label: value, sub: name, payload: value, swatch: c.hex, transient: true
     }));
+  }
+
+  function chipList(text, state, pin, ranked) {
+    const max = Math.max(3, Math.min(40, state.settings.chipMax | 0 || 10));
+    const all = ranked || Providers.rank(text, state);
+    if (all.length <= max) return all;
+    const out = all.slice(0, max);
+    if (pin && !out.includes(pin)) out[max - 1] = pin;
+    return out;
   }
 
   function engineUrl(engine, text, opts) {
@@ -205,7 +216,7 @@ const Compose = (() => {
       case 'web':
         if (text) {
           rows.push(webRow(parsed.engine, text, state, parsed.to));
-          chips = Providers.rank(text, state);
+          chips = chipList(text, state, parsed.engine);
           active = parsed.engine;
         } else rows.push(engineHomeRow(parsed.engine));
         break;
@@ -236,12 +247,15 @@ const Compose = (() => {
             sub: cleaned.removed ? I18n.t('open_clean', { n: cleaned.removed }) : I18n.t('open'), payload: cleaned.url, transient: true, url: true });
         }
         if (rec?.type === 'email') rows.push({ key: 'mail', kind: 'action', label: rec.value, sub: I18n.t('email'), payload: 'mailto:' + rec.value, transient: true, url: true });
+        rows.push(...Gen.parse(text));
         rows.push(...Tools.parse(text, state));
         rows.push(...Providers.direct(text, state));
         for (const h of hits) if (rows.length < limit) rows.push(h.item);
         if (calc && exactAlias) rows.splice(1, 0, calc);
-        chips = Providers.rank(text, state);
-        active = chips.find(e => e.id === o.engineId) || chips[0] || null;
+        const ranked = Providers.rank(text, state);
+        const forced = ranked.find(e => e.id === o.engineId);
+        chips = chipList(text, state, forced, ranked);
+        active = forced || chips[0] || null;
         if (active) rows.push(webRow(active, text, state));
       }
     }

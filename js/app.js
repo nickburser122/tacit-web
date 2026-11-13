@@ -479,33 +479,6 @@ const App = (() => {
     });
   }
 
-  function randomUuid() {
-    if (crypto.randomUUID) return crypto.randomUUID();
-    const b = crypto.getRandomValues(new Uint8Array(16));
-    b[6] = (b[6] & 15) | 64;
-    b[8] = (b[8] & 63) | 128;
-    const h = [...b].map(x => x.toString(16).padStart(2, '0')).join('');
-    return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
-  }
-
-  function randomPassword(length) {
-    const sets = ['abcdefghijkmnopqrstuvwxyz', 'ABCDEFGHJKLMNPQRSTUVWXYZ', '23456789', '!?#$%&*-_+='];
-    const all = sets.join('');
-    const buf = new Uint8Array(1);
-    const limit = 256 - (256 % all.length);
-    const pick = () => {
-      for (;;) {
-        crypto.getRandomValues(buf);
-        if (buf[0] < limit) return all[buf[0] % all.length];
-      }
-    };
-    for (;;) {
-      let out = '';
-      for (let i = 0; i < length; i++) out += pick();
-      if (sets.every(set => [...set].some(c => out.includes(c)))) return out;
-    }
-  }
-
   async function activate(item, newTab) {
     if (!item) return;
     if (!item.transient) Store.touch(item.key);
@@ -626,6 +599,16 @@ const App = (() => {
     if (item.kind === 'link') entries.push([t('edit'), () => Panel.open('links', item.id)]);
     if (item.kind === 'set') entries.push([t('edit'), () => Panel.open('sets', item.id)]);
     if (item.kind === 'tool' && item.payload) entries.push([t('copy'), () => copy(item.payload)]);
+    if (item.alts) for (const [key, make] of item.alts) entries.push([t(key), () => copy(make())]);
+    if (item.regen) entries.push([t('gen_again'), () => run(true)]);
+    if (item.kind === 'link' || (item.kind === 'action' && item.url && !item.payload.startsWith('mailto:'))) {
+      for (const [key, make] of Gen.linkFormats(item.kind === 'link' ? item.label : '', item.payload)) entries.push([t(key), () => copy(make())]);
+    }
+    if (item.kind === 'set') {
+      const pairs = item.payload.map(u => ({ name: u.replace(/^https?:\/\//, '').replace(/\/$/, ''), url: u }));
+      entries.push([t('lf_urls'), () => copy(Gen.linksAs('urls', pairs))]);
+      entries.push([t('lf_md'), () => copy(Gen.linksAs('md', pairs))]);
+    }
     if (item.kind === 'note') {
       entries.push([t('note_task'), () => {
         Store.state.tasks.push({ id: Store.uid(), text: item.payload, done: false, created: Date.now() });
@@ -849,6 +832,18 @@ const App = (() => {
     copy(out.url, I18n.t('clean_done'));
   }
 
+  function copyLinks() {
+    const t = I18n.t;
+    const links = Store.state.links.filter(l => l.name && l.url && Links.safe(l.url));
+    if (!links.length) { flash(t('links_none')); return; }
+    const entries = ['md', 'urls', 'csv', 'json'].map(f => [t('lf_' + f), () => copy(Gen.linksAs(f, links), t('links_copied', { n: links.length }))]);
+    entries.push([t('lf_html'), () => {
+      UI.download('tacit-links.html', Gen.linksAs('html', links), 'text/html');
+      flash(t('links_saved'));
+    }]);
+    UI.menu(t('cmd_copy_links'), entries, input, input);
+  }
+
   function command(id) {
     switch (id) {
       case 'panel': Panel.open(); break;
@@ -871,8 +866,9 @@ const App = (() => {
         if (confirm(I18n.t('data_clear_clip_confirm'))) { Store.state.clips = []; Store.changed('clips'); }
         break;
       case 'clear-tasks': clearDone(); break;
-      case 'uuid': copy(randomUuid()); break;
-      case 'password': copy(randomPassword(20)); break;
+      case 'uuid': copy(Gen.parse('uuid')[0].payload); break;
+      case 'password': copy(Gen.password('')); break;
+      case 'copy-links': copyLinks(); break;
       case 'timestamp': copy(String(Math.floor(Date.now() / 1000))); break;
       case 'export': exportAll(); break;
       case 'import': importAll(); break;

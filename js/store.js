@@ -33,6 +33,7 @@ const Store = (() => {
     clock: true,
     date: true,
     results: 8,
+    chipMax: 10,
     strictness: 'normal',
     transliterate: true,
     learn: true,
@@ -61,7 +62,7 @@ const Store = (() => {
   }
 
   function fresh() {
-    return {
+    const state = {
       version: 2,
       settings: defaultSettings(),
       links: defaultLinks(),
@@ -77,6 +78,8 @@ const Store = (() => {
       timers: [],
       usage: {}
     };
+    Catalog.sync(state, uid, true);
+    return state;
   }
 
   function cleanUsage(raw) {
@@ -114,6 +117,8 @@ const Store = (() => {
     out.engines = out.engines.filter(e => e && typeof e.url === 'string' && (!e.url || Links.safe(e.url.replace(/\{[a-z]+\}/g, 'https://x'))));
     if ((data.version || 1) < 2) out.engines = Providers.migrate(out.engines, uid);
     for (const e of out.engines) if (!e.cat) e.cat = 'web';
+    out.catalog = data.catalog;
+    Catalog.sync(out, uid, false);
     out.version = 2;
     return out;
   }

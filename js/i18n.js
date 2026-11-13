@@ -47,7 +47,7 @@ const I18n = (() => {
     ],
     prefix_help: 'Prefixes',
     greet_morning: 'Good morning', greet_afternoon: 'Good afternoon', greet_evening: 'Good evening', greet_name: '{g}, {name}',
-    hints: ['Search, calculate, or type a command', 'Try 5 km in miles', 'Try time in tokyo', 'Try 25m timer', 'Try + call the bank', 'Try #3b82a0', 'Try 15% of 340', 'Try days until christmas', 'Try r/privacy', 'Try b64 hello', 'Try hijri', 'Try tr hello'],
+    hints: ['Search, calculate, or type a command', 'Try 5 km in miles', 'Try time in tokyo', 'Try 25m timer', 'Try + call the bank', 'Try #3b82a0', 'Try 15% of 340', 'Try days until christmas', 'Try r/privacy', 'Try b64 hello', 'Try hijri', 'Try tr hello', 'Try pw 24 s10 d20', 'Try rand 1 100 x5', 'Try table 5 1..100 pw:8', 'Try px how do magnets work'],
     tasks_title: 'Today', task_add: 'Add task', task_added: 'Task added',
     task_done: 'Done', task_open: 'Mark as not done', task_finish: 'Mark as done', task_remove: 'Remove task', task_clear: 'Clear completed', tasks_cleared: 'Completed tasks cleared',
     timers_title: 'Timers', timer_start: 'Start timer', timer_started: 'Timer started', timer_focus: 'Focus', timer_done: 'Time is up', timer_stop: 'Stop timer', timer_dismiss: 'Dismiss',
@@ -68,12 +68,25 @@ const I18n = (() => {
     enc_unlock: 'Unlock backup', data_export_enc: 'Export encrypted',
     set_frontends: 'Front-ends', set_frontends_note: 'Leave a field blank to use its default. Paste the address of a privacy front-end or your own instance.',
     set_translate_ar: 'Translate Arabic text to', set_translate_other: 'Translate other text to', set_strip: 'Remove tracking from links', set_hijri: 'Hijri date under the clock',
-    providers_note: 'Placeholders: %s (query, spaces as +), {q} (query), {lang} (ar or en from the text), {from} {to} (translation), {host} (front-end address). Categories: web, knowledge, dictionary, translate, code, social, video, maps.',
+    providers_note: 'Placeholders: %s (query, spaces as +), {q} (query), {lang} (ar or en from the text), {from} {to} (translation), {host} (front-end address). Categories: web, ai, knowledge, dictionary, translate, code, social, video, shop, maps.',
     tool_b64: 'Base64', tool_unb64: 'Base64 decoded', tool_url: 'URL encoded', tool_unurl: 'URL decoded', tool_sha256: 'SHA-256',
     tool_json_pretty: 'JSON formatted', tool_json_min: 'JSON minified', tool_json_bad: 'Invalid JSON',
     tool_latin_digits: 'Latin digits', tool_arabic_digits: 'Arabic-Indic digits', tool_upper: 'Uppercase', tool_lower: 'Lowercase', tool_slug: 'Slug',
     tool_words: '{n} words', tool_count_sub: '{c} characters · {l} lines', tool_layout: 'Other keyboard layout',
-    tool_hijri: 'Hijri date', tool_gregorian: 'Gregorian date'
+    tool_hijri: 'Hijri date', tool_gregorian: 'Gregorian date',
+    gen_pass_sub: '{n} characters · {b} bits', gen_pass_all: '{n} passwords', gen_each: 'One per line', gen_again: 'Generate again',
+    gen_int: 'Random integer · {a} to {b}', gen_float: 'Random number · {a} to {b}', gen_values: '{n} values · {a} to {b}',
+    gen_comma: 'Copy comma separated', gen_space: 'Copy space separated', gen_lines: 'Copy one per line', gen_json: 'Copy as JSON array',
+    gen_uuid: 'UUID v4', gen_uuid_all: '{n} UUIDs', gen_table_sub: '{r} rows × {c} columns · {f}',
+    gen_tsv: 'Copy as TSV (Excel, Sheets)', gen_csv: 'Copy as CSV', gen_json_table: 'Copy as JSON', gen_md: 'Copy as Markdown table',
+    fmt_md: 'Copy as Markdown link', fmt_html: 'Copy as HTML link', fmt_domain: 'Copy domain', fmt_clean: 'Copy without tracking',
+    cmd_copy_links: 'Copy all links as…', lf_md: 'Markdown list', lf_urls: 'Plain addresses', lf_csv: 'CSV', lf_json: 'JSON', lf_html: 'Bookmarks file (HTML)',
+    links_copied: '{n} links copied', links_saved: 'Bookmarks file saved', links_none: 'No links to convert',
+    tab_library: 'Library', lib_note: 'Everything built in, one click each. Click to remove, click again to bring it back.',
+    lib_providers: 'Search providers', lib_apps: 'Fihrist apps', lib_all: 'Restore all', lib_none: 'Remove all', lib_count: '{n} of {m} on',
+    lib_removed: 'Removed', lib_restored: 'Restored', lib_conflict: 'That prefix is already in use',
+    cat_web: 'Web', cat_ai: 'AI', cat_knowledge: 'Knowledge', cat_dictionary: 'Dictionaries', cat_translate: 'Translate', cat_code: 'Code',
+    cat_social: 'Social', cat_video: 'Media', cat_shop: 'Shopping', cat_maps: 'Maps', set_chips: 'Providers shown under the bar'
   };
 
   const ar = {
@@ -124,7 +137,7 @@ const I18n = (() => {
     ],
     prefix_help: 'البادئات',
     greet_morning: 'صباح الخير', greet_afternoon: 'نهارك سعيد', greet_evening: 'مساء الخير', greet_name: '{g}، {name}',
-    hints: ['ابحث أو احسب أو اكتب أمرًا', 'جرّب 5 km in miles', 'جرّب time in tokyo', 'جرّب مؤقت 25m', 'جرّب + اتصل بالبنك', 'جرّب ‎#3b82a0', 'جرّب 15% of 340', 'جرّب days until christmas', 'جرّب r/privacy', 'جرّب b64 hello', 'جرّب hijri', 'جرّب tr hello'],
+    hints: ['ابحث أو احسب أو اكتب أمرًا', 'جرّب 5 km in miles', 'جرّب time in tokyo', 'جرّب مؤقت 25m', 'جرّب + اتصل بالبنك', 'جرّب ‎#3b82a0', 'جرّب 15% of 340', 'جرّب days until christmas', 'جرّب r/privacy', 'جرّب b64 hello', 'جرّب hijri', 'جرّب tr hello', 'جرّب pw 24 s10 d20', 'جرّب rand 1 100 x5', 'جرّب table 5 1..100 pw:8', 'جرّب px how do magnets work'],
     tasks_title: 'اليوم', task_add: 'إضافة مهمة', task_added: 'تمت إضافة المهمة',
     task_done: 'منجزة', task_open: 'إلغاء الإنجاز', task_finish: 'تحديد كمنجزة', task_remove: 'حذف المهمة', task_clear: 'مسح المنجزة', tasks_cleared: 'تم مسح المهام المنجزة',
     timers_title: 'المؤقتات', timer_start: 'بدء المؤقت', timer_started: 'بدأ المؤقت', timer_focus: 'تركيز', timer_done: 'انتهى الوقت', timer_stop: 'إيقاف المؤقت', timer_dismiss: 'إغلاق',
@@ -145,12 +158,25 @@ const I18n = (() => {
     enc_unlock: 'فتح النسخة الاحتياطية', data_export_enc: 'تصدير مشفر',
     set_frontends: 'الواجهات البديلة', set_frontends_note: 'اترك الحقل فارغًا لاستخدام الافتراضي. الصق عنوان واجهة تحافظ على الخصوصية أو خادمك الخاص.',
     set_translate_ar: 'ترجمة النص العربي إلى', set_translate_other: 'ترجمة النص الآخر إلى', set_strip: 'إزالة التتبع من الروابط', set_hijri: 'التاريخ الهجري تحت الساعة',
-    providers_note: 'العناصر النائبة: ‎%s (الاستعلام، المسافات +)، ‎{q} (الاستعلام)، ‎{lang} (ar أو en حسب النص)، ‎{from} ‎{to} (الترجمة)، ‎{host} (عنوان الواجهة). التصنيفات: web, knowledge, dictionary, translate, code, social, video, maps.',
+    providers_note: 'العناصر النائبة: ‎%s (الاستعلام، المسافات +)، ‎{q} (الاستعلام)، ‎{lang} (ar أو en حسب النص)، ‎{from} ‎{to} (الترجمة)، ‎{host} (عنوان الواجهة). التصنيفات: web, ai, knowledge, dictionary, translate, code, social, video, shop, maps.',
     tool_b64: 'Base64', tool_unb64: 'فك Base64', tool_url: 'ترميز URL', tool_unurl: 'فك ترميز URL', tool_sha256: 'SHA-256',
     tool_json_pretty: 'JSON منسق', tool_json_min: 'JSON مضغوط', tool_json_bad: 'JSON غير صالح',
     tool_latin_digits: 'أرقام لاتينية', tool_arabic_digits: 'أرقام هندية', tool_upper: 'أحرف كبيرة', tool_lower: 'أحرف صغيرة', tool_slug: 'رابط مختصر',
     tool_words: '{n} كلمة', tool_count_sub: '{c} حرفًا · {l} أسطر', tool_layout: 'تخطيط لوحة المفاتيح الآخر',
-    tool_hijri: 'التاريخ الهجري', tool_gregorian: 'التاريخ الميلادي'
+    tool_hijri: 'التاريخ الهجري', tool_gregorian: 'التاريخ الميلادي',
+    gen_pass_sub: '{n} حرفًا · {b} بت', gen_pass_all: '{n} كلمات مرور', gen_each: 'واحدة في كل سطر', gen_again: 'توليد من جديد',
+    gen_int: 'عدد صحيح عشوائي · من {a} إلى {b}', gen_float: 'رقم عشوائي · من {a} إلى {b}', gen_values: '{n} قيمة · من {a} إلى {b}',
+    gen_comma: 'نسخ مفصولة بفواصل', gen_space: 'نسخ مفصولة بمسافات', gen_lines: 'نسخ في أسطر', gen_json: 'نسخ كمصفوفة JSON',
+    gen_uuid: 'UUID v4', gen_uuid_all: '{n} UUID', gen_table_sub: '{r} صفًا × {c} أعمدة · {f}',
+    gen_tsv: 'نسخ بصيغة TSV (إكسل وجداول جوجل)', gen_csv: 'نسخ بصيغة CSV', gen_json_table: 'نسخ بصيغة JSON', gen_md: 'نسخ كجدول Markdown',
+    fmt_md: 'نسخ كرابط Markdown', fmt_html: 'نسخ كرابط HTML', fmt_domain: 'نسخ النطاق', fmt_clean: 'نسخ بدون تتبع',
+    cmd_copy_links: 'نسخ كل الروابط بصيغة…', lf_md: 'قائمة Markdown', lf_urls: 'العناوين فقط', lf_csv: 'CSV', lf_json: 'JSON', lf_html: 'ملف إشارات مرجعية (HTML)',
+    links_copied: 'تم نسخ {n} رابط', links_saved: 'تم حفظ ملف الإشارات', links_none: 'لا توجد روابط للتحويل',
+    tab_library: 'المكتبة', lib_note: 'كل ما هو مضمّن بنقرة واحدة. انقر للحذف وانقر مرة أخرى للاسترجاع.',
+    lib_providers: 'مزوّدو البحث', lib_apps: 'تطبيقات فهرست', lib_all: 'استرجاع الكل', lib_none: 'حذف الكل', lib_count: '{n} من {m} مفعّل',
+    lib_removed: 'تم الحذف', lib_restored: 'تم الاسترجاع', lib_conflict: 'هذه البادئة مستخدمة بالفعل',
+    cat_web: 'الويب', cat_ai: 'الذكاء الاصطناعي', cat_knowledge: 'المعرفة', cat_dictionary: 'القواميس', cat_translate: 'الترجمة', cat_code: 'البرمجة',
+    cat_social: 'المجتمعات', cat_video: 'الوسائط', cat_shop: 'التسوق', cat_maps: 'الخرائط', set_chips: 'عدد المزوّدين تحت الشريط'
   };
 
   let current = 'en';

@@ -9,8 +9,8 @@ const Panel = (() => {
   let filter = '';
   let clipMessage = '';
 
-  const tabs = ['links', 'sets', 'people', 'snippets', 'engines', 'commands', 'settings', 'data', 'keys'];
-  const tabIcons = { links: 'link', sets: 'set', people: 'people', snippets: 'snippet', engines: 'web', commands: 'command', settings: 'settings', data: 'data', keys: 'keys' };
+  const tabs = ['links', 'sets', 'people', 'snippets', 'engines', 'library', 'commands', 'settings', 'data', 'keys'];
+  const tabIcons = { links: 'link', sets: 'set', people: 'people', snippets: 'snippet', engines: 'web', library: 'library', commands: 'command', settings: 'settings', data: 'data', keys: 'keys' };
 
   const tables = {
     links: {
@@ -112,6 +112,7 @@ const Panel = (() => {
     tabsNode.querySelector('[aria-selected="true"]')?.scrollIntoView({ inline: 'nearest', block: 'nearest' });
     const inner = el('div', { class: 'panel-inner' });
     if (tables[current]) inner.append(...tableView(current));
+    else if (current === 'library') inner.append(...libraryView());
     else if (current === 'commands') inner.append(...commandsView());
     else if (current === 'settings') inner.append(settingsView());
     else if (current === 'data') inner.append(...dataView());
@@ -257,6 +258,7 @@ const Panel = (() => {
         const list = spec.list();
         list.splice(list.indexOf(row), 1);
         Store.state.pins = Store.state.pins.filter(k => k !== pinKey);
+        if (row.ck) Catalog.markDropped(Store.state, row.ck);
         save(true);
       }
     })));
@@ -345,6 +347,64 @@ const Panel = (() => {
     App.flash(I18n.t('rows_imported', { n }));
   }
 
+  function libraryView() {
+    const lang = I18n.lang;
+    const blocks = [el('p', { class: 'note', text: t('lib_note') })];
+    const sections = [
+      { title: 'lib_providers', entries: Catalog.engineEntries(), groups: Providers.CATEGORIES.map(c => [c, t('cat_' + c)]), label: e => e.name, tag: e => e.tag },
+      { title: 'lib_apps', entries: Catalog.appEntries(), groups: Catalog.GROUPS.map(g => [g[0], lang === 'ar' ? g[2] : g[1]]), label: e => (lang === 'ar' ? e.alt : e.name), tag: () => '' }
+    ];
+    for (const sec of sections) {
+      const keys = sec.entries.map(e => e.ck);
+      const count = el('span', { class: 'lib-count' });
+      const pills = new Map();
+      const sync = () => {
+        const have = Catalog.present(Store.state);
+        let on = 0;
+        for (const [ck, button] of pills) {
+          const live = have.has(ck);
+          if (live) on++;
+          button.setAttribute('aria-pressed', live ? 'true' : 'false');
+        }
+        count.textContent = I18n.t('lib_count', { n: on, m: keys.length });
+      };
+      const flip = ck => {
+        if (Catalog.present(Store.state).has(ck)) Catalog.remove(Store.state, ck);
+        else if (!Catalog.restore(Store.state, ck, Store.uid)) { App.flash(t('lib_conflict')); return; }
+        Store.changed();
+        sync();
+      };
+      const bar = el('div', { class: 'lib-head' }, el('h3', { text: t(sec.title) }), count,
+        el('button', { type: 'button', class: 'btn', text: t('lib_all'), onclick: () => {
+          Catalog.restoreAll(Store.state, keys, Store.uid);
+          Store.changed();
+          sync();
+        } }),
+        el('button', { type: 'button', class: 'btn danger', text: t('lib_none'), onclick: () => {
+          Catalog.removeAll(Store.state, keys);
+          Store.changed();
+          sync();
+        } }));
+      const card = el('div', { class: 'card lib' }, bar);
+      for (const [group, title] of sec.groups) {
+        const members = sec.entries.filter(e => e.group === group);
+        if (!members.length) continue;
+        const box = el('div', { class: 'pills' });
+        for (const e of members) {
+          const tag = sec.tag(e);
+          const button = el('button', { type: 'button', class: 'pill', 'aria-pressed': 'true', dir: 'auto', onclick: () => flip(e.ck) },
+            el('span', { text: sec.label(e) }), tag ? el('span', { class: 'pill-tag', text: tag }) : null);
+          pills.set(e.ck, button);
+          box.append(button);
+        }
+        card.append(el('h4', { class: 'lib-group', text: title }), box);
+      }
+      sync();
+      blocks.push(card);
+    }
+    return blocks;
+  }
+
   function commandsView() {
     const table = el('table', { class: 'grid' });
     table.append(el('thead', {}, el('tr', {}, el('th', { text: t('col_command') }), el('th', { text: t('col_aliases') }), el('th', { text: t('col_pin') }))));
@@ -429,6 +489,7 @@ const Panel = (() => {
     text(look, 'set_name', () => s.name, v => { s.name = v; }, '180px', 'auto');
     toggle(look, 'set_home_tasks', 'homeTasks');
     number(look, 'set_results', 'results', 3, 30);
+    number(look, 'set_chips', 'chipMax', 3, 40);
 
     const search = section('set_search');
     select(search, 'set_fuzzy', 'strictness', [['off', t('fuzzy_off')], ['normal', t('fuzzy_normal')], ['loose', t('fuzzy_loose')]]);
