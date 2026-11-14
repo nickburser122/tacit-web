@@ -32,7 +32,7 @@ const Compose = (() => {
       try { host = new URL(l.url).hostname.replace(/^www\./, ''); } catch (e) { host = l.url; }
       const desc = l.desc ? l.desc[I18n.lang === 'ar' ? 1 : 0] : '';
       items.push({ key: 'link:' + l.id, id: l.id, kind: 'link', label: l.name, sub: desc || host, extra: l.names ? [host.split('.')[0], ...l.names] : [host.split('.')[0]],
-        payload: l.url, aliases: l.aliases, pinned: pins.has('link:' + l.id) });
+        payload: l.url, tab: l.tab, aliases: l.aliases, pinned: pins.has('link:' + l.id) });
     }
     for (const st of state.sets) {
       if (!st.name || !st.urls.length) continue;
@@ -133,7 +133,7 @@ const Compose = (() => {
   function webRow(engine, text, state, to) {
     const arrow = Providers.wantsTarget(engine) ? ' → ' + Providers.targets(text, state, to) : '';
     return { key: 'web:' + engine.id, kind: 'web', label: text, sub: engine.name + arrow, engineId: engine.id,
-      payload: engineUrl(engine, text, { state, to }), transient: true };
+      payload: engineUrl(engine, text, { state, to }), transient: true, copyText: engine.paste ? text : '' };
   }
 
   function engineHomeRow(engine) {
@@ -215,7 +215,14 @@ const Compose = (() => {
       case 'calc': { const r = calcRow(text); if (r) rows.push(r); break; }
       case 'web':
         if (text) {
-          rows.push(webRow(parsed.engine, text, state, parsed.to));
+          if (parsed.engines) {
+            const list = parsed.engines.map(e => webRow(e, text, state));
+            rows.push({ key: 'web-all', kind: 'web', multi: true, label: text,
+              sub: I18n.t('web_all', { n: list.length, names: parsed.engines.map(e => e.name).join(' · ') }),
+              payload: list.map(r => ({ id: r.engineId, url: r.payload })), transient: true,
+              copyText: parsed.engines.some(e => e.paste) ? text : '' });
+            rows.push(...list);
+          } else rows.push(webRow(parsed.engine, text, state, parsed.to));
           chips = chipList(text, state, parsed.engine);
           active = parsed.engine;
         } else rows.push(engineHomeRow(parsed.engine));

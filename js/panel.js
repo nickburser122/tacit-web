@@ -19,7 +19,8 @@ const Panel = (() => {
       cols: [
         { key: 'name', label: 'col_name' },
         { key: 'url', label: 'col_url', type: 'url' },
-        { key: 'aliases', label: 'col_aliases', list: true }
+        { key: 'aliases', label: 'col_aliases', list: true },
+        { key: 'tab', label: 'col_tab', choice: [['', 'tab_default'], ['new', 'tab_new'], ['same', 'tab_same']] }
       ],
       csv: ['name', 'url', 'aliases'],
       pinKey: r => 'link:' + r.id
@@ -217,6 +218,13 @@ const Panel = (() => {
         box.checked = !!row[c.key];
         box.addEventListener('change', () => { row[c.key] = box.checked; Store.changed(); });
         tr.append(el('td', { class: 'cell-center' }, box));
+        continue;
+      }
+      if (c.choice) {
+        const pick = el('select', { 'aria-label': t(c.label) }, ...c.choice.map(([v, k]) => el('option', { value: v, text: t(k) })));
+        pick.value = row[c.key] || '';
+        pick.addEventListener('change', () => { row[c.key] = pick.value; Store.changed(); });
+        tr.append(el('td', {}, pick));
         continue;
       }
       const value = Array.isArray(row[c.key]) ? row[c.key].join(c.lines ? '\n' : ', ') : (row[c.key] || '');
@@ -526,7 +534,8 @@ const Panel = (() => {
     }
 
     const actions = section('set_actions');
-    toggle(actions, 'set_newtab', 'newTab');
+    select(actions, 'set_open_links', 'openLinks', [['same', t('tab_same')], ['new', t('tab_new')]]);
+    select(actions, 'set_open_search', 'openSearch', [['same', t('tab_same')], ['new', t('tab_new')]]);
     toggle(actions, 'set_strip', 'stripTrackers');
     toggle(actions, 'set_clear', 'clearAfter');
     text(actions, 'set_country', () => s.countryCode, v => { s.countryCode = v.replace(/\D/g, ''); }, '90px');

@@ -1,4 +1,4 @@
-const CACHE = 'tacit-v7';
+const CACHE = 'tacit-v8';
 const PAGE = new URL('index.html', self.registration.scope).href;
 const ASSETS = [
   './', 'index.html', 'manifest.webmanifest',

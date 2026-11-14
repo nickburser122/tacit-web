@@ -29,6 +29,7 @@ Charcoal by night, bone by day, with one ember accent. The sun/moon button in th
 | `https://site.com/?utm_source=x` | Opens with tracking parameters removed |
 | `morning` (a launch set) | Opens every link in the set at once |
 | `g cats`, `b cats`, `d hello`, `tr bonjour`, `tr>fr bonjour` | Search with a provider prefix |
+| `g+b+ddg cats`, `px+cl+gem+cop how do magnets work` | Search several providers at once: an "Open all" row first, then one row per provider. Up to 4 |
 
 Press `/` anywhere to focus the field, arrow keys to move between tiles, `Enter` to open, `Ctrl/Cmd + Enter` for a new tab, `Tab` and `Shift + Tab` to switch search provider, `Alt + Enter` (or right-click, or long-press) for actions, `Alt + 1…9` to open a tile directly, `Ctrl/Cmd + ,` for the panel, `Alt + T` for the theme.
 
@@ -40,7 +41,8 @@ Typing a query shows a row of providers under the bar, ordered by what you typed
 | --- | --- | --- |
 | `ddg` (default) `b` `sp` `mj` `qw` `sx` | DuckDuckGo, Brave Search, Startpage, Mojeek, Qwant, SearXNG | Web |
 | `g` `bing` `ec` `gi` | Google, Bing, Ecosia, Google Images | Web |
-| `px` `ai` `gpt` | Perplexity, Duck.ai, ChatGPT (no sign-in). Question-shaped text ranks these first | AI |
+| `px` `ai` `gpt` `cl` `gem` `cop` `gai` `ba` `gk` `t3` `mis` `hf` `you` | Perplexity, Duck.ai, ChatGPT, Claude, Gemini, Copilot, Google AI Mode, Ask Brave, Grok, T3 Chat, Le Chat, HuggingChat, You.com. The question text is filled in for you. Question-shaped text ranks these first | AI |
+| `mid` `meta` `ds` | Midjourney, Meta AI, DeepSeek. These sites take no query in the address, so Tacit copies your text and opens the site in a new tab; paste it into the box | AI |
 | `w` `wolf` `sch` `arc` | Wikipedia, WolframAlpha, Google Scholar, Internet Archive | Knowledge |
 | `d` `am` `ud` | Wiktionary, Almaany (Arabic), Urban Dictionary (English) | Dictionary |
 | `tr` `gt` | Translate (Lingva), Google Translate; `tr>fr text` picks the target | Translate |
@@ -50,7 +52,15 @@ Typing a query shows a row of providers under the bar, ordered by what you typed
 | `amz` `gp` | Amazon, Google Play | Shopping |
 | `map` `gm` | OpenStreetMap, Google Maps | Maps |
 
+AI sites decide for themselves what a logged-out visitor can do. Duck.ai, Perplexity, Copilot, Google AI Mode, Ask Brave and HuggingChat work without an account; Claude, Gemini, ChatGPT, Grok, T3 Chat, Le Chat and the paste-only sites may ask you to sign in. Gemini fills the box but waits for you to press Enter. If a site changes its address format, edit that provider in Settings, Providers.
+
 Only the first few providers show under the search bar (Settings, Look: providers shown). Every prefix still works.
+
+## Opening links and searching several providers
+
+Settings, Actions has two choices: open links in this tab or a new tab, and open searches in this tab or a new tab. `Ctrl/Cmd + Enter` always does the opposite of whatever the default is. The Links tab has an Opens in column to override one link, and `Alt + Enter` on a link offers Open in this tab or new tab once, or Always for that link.
+
+`g+b+ddg cats` (or `g,b,ddg cats`) lists an Open all row and one row per provider. Open all happens only when you press Enter on it. It opens at most 4 tabs, all inside that one keypress, with no delays, redirects or background opening, and the launcher stays where it is. If your browser's pop-up blocker lets only some through, Tacit says how many were held back and the next Enter opens just those.
 
 ## Library
 

@@ -1,5 +1,5 @@
 const Catalog = (() => {
-  const REV = 1;
+  const REV = 2;
   const PACK_ON = true;
   const LEGACY_ENGINES = ['ddg', 'b', 'sp', 'mj', 'sx', 'g', 'w', 'd', 'tr', 'gh', 'cg', 'mdn', 'r', 'yt', 'map'];
   const GROUPS = [["core", "Core", "الأساسية"], ["tools", "Tools", "الأدوات"], ["practice", "Practice", "التدريب"], ["experimental", "Experimental", "التجريبية"], ["print", "Print", "الطباعة"]];

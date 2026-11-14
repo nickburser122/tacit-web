@@ -37,7 +37,8 @@ const Store = (() => {
     strictness: 'normal',
     transliterate: true,
     learn: true,
-    newTab: false,
+    openLinks: 'same',
+    openSearch: 'same',
     defaultEngine: 'ddg',
     translateArabicTo: 'en',
     translateOtherTo: 'ar',
@@ -109,6 +110,10 @@ const Store = (() => {
     out.settings = { ...base.settings, ...(data.settings || {}) };
     out.settings.prefixes = { ...base.settings.prefixes, ...((data.settings || {}).prefixes || {}) };
     out.settings.kindOrder = cleanKindOrder(out.settings.kindOrder, base.settings.kindOrder);
+    const legacy = data.settings || {};
+    if (legacy.openLinks === undefined && legacy.newTab) out.settings.openLinks = 'new';
+    delete out.settings.newTab;
+    for (const k of ['openLinks', 'openSearch']) if (out.settings[k] !== 'new') out.settings[k] = 'same';
     for (const k of ['links', 'people', 'snippets', 'sets', 'notes', 'engines', 'clips', 'pins', 'tasks', 'timers']) if (!Array.isArray(out[k])) out[k] = base[k];
     if (!out.commandAliases || typeof out.commandAliases !== 'object') out.commandAliases = {};
     out.usage = cleanUsage(data.usage);

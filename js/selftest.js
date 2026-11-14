@@ -445,6 +445,22 @@
     lowChips.settings.chipMax = 4;
     check('chipMax setting honoured', Compose.compose('hello', lowChips).chips.length === 4 && Compose.compose('so cats', lowChips).chips.some(c => c.prefix === 'so'), null);
 
+    const multi = q => Providers.parseScoped(q, fresh);
+    check('multi-engine syntax', multi('g+b cats').engines.map(e => e.prefix).join() === 'g,b' && multi('g,b,ddg cats').engines.length === 3 && multi('g+b cats').text === 'cats' && multi('G+B cats').engines.length === 2, null);
+    check('multi-engine caps at four and dedupes', multi('g+b+ddg+mj+sp+bing cats').engines.length === Providers.MAX_MULTI && multi('g+g+b cats').engines.length === 2 && multi('g+g cats') === null, null);
+    check('multi-engine ignores non-engines', multi('c++ tutorial') === null && multi('g+zzz cats') === null && multi('1+1 = 2') === null && multi('g+b') === null && Compose.compose('c++ tutorial', fresh).parsed.scope === 'all', null);
+    const mc = Compose.compose('g+b+ddg cats', fresh);
+    check('multi-engine rows', mc.rows.length === 4 && mc.rows[0].multi && mc.rows[0].payload.length === 3 && mc.rows.slice(1).every(r => r.kind === 'web' && !r.multi && r.label === 'cats') && mc.rows[1].payload.includes('google.com') && mc.active.prefix === 'g', mc.rows.map(r => r.sub));
+    check('single engine unchanged', Compose.compose('g cats', fresh).rows.length === 1 && !Compose.compose('g cats', fresh).rows[0].multi, null);
+    check('multi-engine urls all safe', mc.rows[0].payload.every(p => Links.safe(p.url)) && mc.rows[0].payload.map(p => new URL(p.url).hostname).join() === 'www.google.com,search.brave.com,duckduckgo.com', mc.rows[0].payload.map(p => p.url));
+
+    const modes = { openLinks: 'same', openSearch: 'new' };
+    check('open mode resolution', Links.wantsNewTab(modes, 'link', '', false) === false && Links.wantsNewTab(modes, 'search', '', false) === true && Links.wantsNewTab(modes, 'link', '', true) === true && Links.wantsNewTab(modes, 'search', '', true) === false, null);
+    check('per-link override wins and flips', Links.wantsNewTab(modes, 'link', 'new', false) === true && Links.wantsNewTab(modes, 'search', 'same', false) === false && Links.wantsNewTab(modes, 'link', 'new', true) === false && Links.wantsNewTab(modes, 'link', 'bogus', false) === false, null);
+    check('legacy newTab migrates', Store.merge({ version: 2, settings: { newTab: true } }).settings.openLinks === 'new' && Store.merge({ version: 2, settings: { newTab: true } }).settings.openSearch === 'same' && !('newTab' in Store.merge({ version: 2, settings: { newTab: true } }).settings), null);
+    check('open settings validated', Store.merge({ version: 2, settings: { openLinks: 'popup', openSearch: 7 } }).settings.openLinks === 'same' && Store.merge({ version: 2, settings: { openLinks: 'new' } }).settings.openLinks === 'new' && fresh.settings.openLinks === 'same', null);
+    check('link tab override reaches search items', (() => { const st = Store.fresh(); st.links.push({ id: 'z', name: 'Zed', url: 'https://z.example/', aliases: [], tab: 'new' }); return Compose.buildItems(st).find(i => i.id === 'z').tab === 'new'; })(), null);
+
     const apps = fresh.links.filter(l => l.ck);
     check('fihrist apps baked in', apps.length === Catalog.APPS.length && Catalog.APPS.length > 50 && apps.every(l => Links.safe(l.url) && l.name && l.names.length), apps.length);
     check('catalog keys unique', new Set(Catalog.APPS.map(a => a.k)).size === Catalog.APPS.length && new Set(Catalog.APPS.map(a => a.u)).size === Catalog.APPS.length, null);
@@ -474,6 +490,17 @@
     check('remove all then restore all', wipe.links.filter(l => l.ck).length === 0 && Catalog.restoreAll(wipe, Catalog.appEntries().map(e => e.ck), () => 'w' + Math.random()) === Catalog.APPS.length, null);
     const legacyUser = Store.merge({ version: 2, engines: Providers.defaults().filter(d => d.prefix !== 'g' && ['ddg', 'b', 'sp', 'mj', 'sx', 'w', 'd', 'tr', 'gh', 'cg', 'mdn', 'r', 'yt', 'map'].includes(d.prefix)).map((d, i) => ({ id: 'l' + i, aliases: [], ...d })) });
     check('existing user gets new providers but deleted old ones stay gone', !legacyUser.engines.some(e => e.prefix === 'g') && legacyUser.engines.some(e => e.prefix === 'px') && legacyUser.engines.some(e => e.prefix === 'wolf') && legacyUser.links.filter(l => l.ck).length === Catalog.APPS.length, legacyUser.catalog);
+    const aiList = Providers.defaults().filter(d => d.cat === 'ai');
+    const aiPref = aiList.map(d => d.prefix);
+    check('AI providers present', ['px', 'ai', 'gpt', 'cl', 'gem', 'cop', 'gai', 'ba', 'gk', 't3', 'mis', 'hf', 'you', 'mid', 'meta', 'ds'].every(p => aiPref.includes(p)) && aiList.length === 16, aiPref);
+    const aiUrl = (p, q) => Providers.build(fresh.engines.find(e => e.prefix === p), q, { state: fresh });
+    check('AI provider urls', aiUrl('cl', 'a b&c') === 'https://claude.ai/new?q=a+b%26c' && aiUrl('gem', 'hi there') === 'https://gemini.google.com/app?prompt=hi+there' && aiUrl('cop', 'x') === 'https://copilot.microsoft.com/?q=x' && aiUrl('gai', 'x y') === 'https://www.google.com/search?udm=50&q=x+y' && aiUrl('t3', 'x') === 'https://t3.chat/new?q=x', null);
+    const mjRow = Compose.compose('mid a cat in rain', fresh).rows[0];
+    check('paste-only providers carry the query', mjRow.copyText === 'a cat in rain' && mjRow.payload === 'https://www.midjourney.com/imagine' && Compose.compose('cl a cat', fresh).rows[0].copyText === '', mjRow);
+    const aiMulti = Compose.compose('px+cl+gem+cop+gk how do magnets work', fresh);
+    check('AI providers combine through multi-engine', aiMulti.rows[0].multi && aiMulti.rows[0].payload.length === Providers.MAX_MULTI && aiMulti.rows[0].copyText === '' && Compose.compose('cl+mid cats', fresh).rows[0].copyText === 'cats', aiMulti.rows[0].sub);
+    const rev1 = Store.merge({ version: 2, catalog: { rev: 1, dropped: ['e:px'] }, engines: Providers.defaults().filter(d => !['cl', 'gem', 'px'].includes(d.prefix)).map((d, i) => ({ id: 'r' + i, aliases: [], ...d, ck: 'e:' + d.prefix })) });
+    check('catalog rev bump delivers new AI providers without resurrecting removed ones', rev1.engines.some(e => e.prefix === 'cl') && rev1.engines.some(e => e.prefix === 'gem') && !rev1.engines.some(e => e.prefix === 'px') && rev1.catalog.rev === Catalog.REV, rev1.catalog);
     const second = Store.merge(JSON.parse(JSON.stringify(legacyUser)));
     check('catalog sync is idempotent', second.engines.length === legacyUser.engines.length && second.links.length === legacyUser.links.length, null);
     check('merge tolerates broken catalog data', Store.merge({ version: 2, catalog: { rev: 'x', dropped: 5 } }).engines.length === Providers.defaults().length && Store.merge({ version: 2, catalog: null }).links.some(l => l.ck), null);

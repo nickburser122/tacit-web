@@ -41,5 +41,10 @@ const Links = (() => {
     }
   }
 
-  return { safe, clean, origin, normalizeHost };
+  function wantsNewTab(settings, kind, override, flip) {
+    const base = override === 'new' || override === 'same' ? override : (kind === 'search' ? settings.openSearch : settings.openLinks);
+    return (base === 'new') !== !!flip;
+  }
+
+  return { safe, clean, origin, normalizeHost, wantsNewTab };
 })();

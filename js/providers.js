@@ -3,6 +3,7 @@ const Providers = (() => {
   const ARABIC = /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]/;
   const LANG_CODE = /^[a-z]{2,3}(?:-[a-z0-9]{2,4})?$/i;
   const QUESTION = /^(?:what|who|why|how|when|where|which|explain|compare|difference|ما|ماذا|من|لماذا|كيف|متى|أين|اين|هل|اشرح|الفرق)\s/i;
+  const MAX_MULTI = 4;
   const PLACEHOLDER = /\{(host|lang|from|to|q)\}|%s/g;
 
   const DEFAULTS = [
@@ -19,6 +20,19 @@ const Providers = (() => {
     { prefix: 'px', name: 'Perplexity', url: 'https://www.perplexity.ai/search?q=%s', cat: 'ai', priv: false },
     { prefix: 'ai', name: 'Duck.ai', url: 'https://duckduckgo.com/?q=%s&ia=chat', cat: 'ai', priv: true },
     { prefix: 'gpt', name: 'ChatGPT', url: 'https://chatgpt.com/?q=%s', cat: 'ai', priv: false },
+    { prefix: 'cl', name: 'Claude', url: 'https://claude.ai/new?q=%s', cat: 'ai', priv: false },
+    { prefix: 'gem', name: 'Gemini', url: 'https://gemini.google.com/app?prompt=%s', cat: 'ai', priv: false },
+    { prefix: 'cop', name: 'Copilot', url: 'https://copilot.microsoft.com/?q=%s', cat: 'ai', priv: false },
+    { prefix: 'gai', name: 'Google AI Mode', url: 'https://www.google.com/search?udm=50&q=%s', cat: 'ai', priv: false },
+    { prefix: 'ba', name: 'Ask Brave', url: 'https://search.brave.com/ask?q=%s', cat: 'ai', priv: true },
+    { prefix: 'gk', name: 'Grok', url: 'https://grok.com/?q=%s', cat: 'ai', priv: false },
+    { prefix: 't3', name: 'T3 Chat', url: 'https://t3.chat/new?q=%s', cat: 'ai', priv: false },
+    { prefix: 'mis', name: 'Le Chat', url: 'https://chat.mistral.ai/chat?q=%s', cat: 'ai', priv: false },
+    { prefix: 'hf', name: 'HuggingChat', url: 'https://huggingface.co/chat/?q=%s', cat: 'ai', priv: true },
+    { prefix: 'you', name: 'You.com', url: 'https://you.com/search?fromSearchBar=true&tbm=youchat&q=%s', cat: 'ai', priv: false },
+    { prefix: 'mid', name: 'Midjourney', url: 'https://www.midjourney.com/imagine', cat: 'ai', priv: false, paste: true },
+    { prefix: 'meta', name: 'Meta AI', url: 'https://www.meta.ai/', cat: 'ai', priv: false, paste: true },
+    { prefix: 'ds', name: 'DeepSeek', url: 'https://chat.deepseek.com/', cat: 'ai', priv: false, paste: true },
     { prefix: 'w', name: 'Wikipedia', url: 'https://{lang}.wikipedia.org/w/index.php?search=%s', cat: 'knowledge', priv: true },
     { prefix: 'wolf', name: 'WolframAlpha', url: 'https://www.wolframalpha.com/input?i=%s', cat: 'knowledge', priv: false },
     { prefix: 'sch', name: 'Google Scholar', url: 'https://scholar.google.com/scholar?q=%s', cat: 'knowledge', priv: false },
@@ -177,6 +191,20 @@ const Providers = (() => {
         if (m) return { scope: 'web', text: (m[2] || '').trim(), engine: e, to: m[1].toLowerCase() };
       }
     }
+    const head = /^(\S+)\s+(\S[\s\S]*)$/.exec(trimmed);
+    if (head && /[+,]/.test(head[1])) {
+      const byPrefix = new Map(engines.map(e => [e.prefix.toLowerCase(), e]));
+      const picked = [];
+      for (const part of head[1].toLowerCase().split(/[+,]/)) {
+        const e = byPrefix.get(part);
+        if (!e) return null;
+        if (!picked.includes(e)) picked.push(e);
+      }
+      if (picked.length >= 2) {
+        const chosen = picked.slice(0, MAX_MULTI);
+        return { scope: 'web', text: head[2].trim(), engine: chosen[0], engines: chosen };
+      }
+    }
     return null;
   }
 
@@ -202,5 +230,5 @@ const Providers = (() => {
     return out;
   }
 
-  return { CATEGORIES, defaults, build, home, targets, hostOf, hasHost, usable, wantsTarget, intentOf, rank, direct, parseScoped, migrate, scriptOf, LANG_CODE };
+  return { CATEGORIES, defaults, build, home, targets, hostOf, hasHost, usable, wantsTarget, intentOf, rank, direct, parseScoped, migrate, scriptOf, LANG_CODE, MAX_MULTI };
 })();

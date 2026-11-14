@@ -173,7 +173,7 @@ const App = (() => {
     const parsed = Compose.parse(input.value, Store.state);
     if (!engine || !parsed.text) return;
     Store.touch('engine:' + id);
-    openUrl(Compose.webRow(engine, parsed.text, Store.state).payload, newTab);
+    openUrl(Compose.webRow(engine, parsed.text, Store.state).payload, { flip: newTab, kind: 'search' });
   }
 
   function updateTitle() {
@@ -362,7 +362,7 @@ const App = (() => {
     Store.touch(item.key);
     if (action === 'call') withNumber(p, n => openUrl('tel:' + n));
     else if (action === 'message') withNumber(p, n => openUrl('sms:' + n));
-    else if (action === 'whatsapp') withNumber(p, n => openUrl('https://wa.me/' + international(n), true));
+    else if (action === 'whatsapp') withNumber(p, n => openUrl('https://wa.me/' + international(n), { mode: 'new' }));
     else if (action === 'email') openUrl('mailto:' + p.emails[0]);
   }
 
@@ -410,12 +410,13 @@ const App = (() => {
     renderChips();
   }
 
-  function openUrl(url, external) {
+  function openUrl(url, opt) {
     if (!Links.safe(url)) {
       flash(I18n.t('blocked_url'), 2600);
       return false;
     }
-    const newTab = S().newTab || external;
+    const o = opt && typeof opt === 'object' ? opt : { flip: !!opt };
+    const newTab = o.mode ? o.mode === 'new' : Links.wantsNewTab(S(), o.kind, o.tab, o.flip);
     if (/^(tel|sms|mailto):/i.test(url)) {
       window.location.href = url;
     } else if (newTab) {
@@ -437,6 +438,27 @@ const App = (() => {
     }
     if (blocked) flash(I18n.t('set_popup'), 5000);
     else afterLeave();
+  }
+
+  let multiPending = null;
+
+  function openMulti(item) {
+    const resume = multiPending && multiPending.key === input.value ? multiPending.urls : null;
+    const urls = (resume || item.payload.map(p => p.url)).filter(Links.safe);
+    const blocked = [];
+    for (const url of urls) {
+      const w = window.open(url, '_blank');
+      if (w) w.opener = null;
+      else blocked.push(url);
+    }
+    for (const p of item.payload) Store.touch('engine:' + p.id);
+    if (blocked.length) {
+      multiPending = { key: input.value, urls: blocked };
+      flash(I18n.t('multi_blocked', { n: blocked.length }), 6000);
+    } else {
+      multiPending = null;
+      afterLeave();
+    }
   }
 
   function afterLeave() {
@@ -485,7 +507,7 @@ const App = (() => {
     if (item.engineId) Store.touch('engine:' + item.engineId);
     switch (item.kind) {
       case 'link':
-        openUrl(item.payload, newTab);
+        openUrl(item.payload, { flip: newTab, kind: 'link', tab: item.tab });
         break;
       case 'set':
         openSet(item.payload);
@@ -498,10 +520,12 @@ const App = (() => {
           input.focus();
           break;
         }
-        openUrl(item.payload, newTab);
+        if (item.copyText) copy(item.copyText, I18n.t('paste_hint'));
+        if (item.multi) { openMulti(item); break; }
+        openUrl(item.payload, item.copyText ? { mode: 'new' } : { flip: newTab, kind: 'search' });
         break;
       case 'action':
-        openUrl(item.payload, newTab);
+        openUrl(item.payload, { flip: newTab, kind: 'link' });
         break;
       case 'tool':
         if (item.payload) copy(item.payload);
@@ -581,12 +605,23 @@ const App = (() => {
       }]);
     }
     if (item.kind === 'link' || (item.kind === 'web' && !item.isEngine) || (item.kind === 'action' && item.url)) {
-      entries.push([t('openNewTab'), () => openUrl(item.payload, true)]);
+      const kind = item.kind === 'web' ? 'search' : 'link';
+      const usual = Links.wantsNewTab(S(), kind, item.tab, false);
+      entries.push(usual ? [t('openSameTab'), () => openUrl(item.payload, { mode: 'same' })] : [t('openNewTab'), () => openUrl(item.payload, { mode: 'new' })]);
       entries.push([t('copy'), () => copy(item.payload)]);
+      const owner = item.kind === 'link' ? Store.state.links.find(l => l.id === item.id) : null;
+      if (owner) {
+        const want = usual ? 'same' : 'new';
+        const fallback = Links.wantsNewTab(S(), 'link', '', false) ? 'new' : 'same';
+        entries.push([t(want === 'new' ? 'tab_always_new' : 'tab_always_same'), () => {
+          owner.tab = want === fallback ? '' : want;
+          Store.changed();
+        }]);
+      }
     }
     if (item.kind === 'link' && S().stripTrackers) {
       const cleaned = Links.clean(item.payload);
-      if (cleaned.removed) entries.push([t('open_clean'), () => openUrl(cleaned.url, false)]);
+      if (cleaned.removed) entries.push([t('open_clean'), () => openUrl(cleaned.url, { kind: 'link', tab: item.tab })]);
     }
     if (item.kind === 'action' && item.url && !item.payload.startsWith('mailto:')) {
       entries.push([t('saveLink'), () => addLink({ url: item.payload, name: item.label })]);
